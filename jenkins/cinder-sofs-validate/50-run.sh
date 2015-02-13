@@ -60,7 +60,6 @@ BUILD_TIMEOUT=300
 TEMPEST_VOLUME_VENDOR=Scality
 TEMPEST_STORAGE_PROTOCOL=scality
 
-LIBVIRT_TYPE=qemu
 disable_service $extra_disabled_services heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
 EOF
 
