@@ -11,8 +11,14 @@ HOST_IP=$(ip addr show dev eth0 | sed -nr 's/.*inet ([0-9.]+).*/\1/p');
 function add_source() {
     # subshell trick, do not output the password to stdout
     (set +x; echo "deb [arch=amd64] http://${SCAL_PASS}@packages.scality.com/stable_khamul/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/scality4.list &>/dev/null)
-    gpg --keyserver keys.gnupg.net --recv-keys 5B1943DD
-    gpg -a --export 5B1943DD | sudo apt-key add -
+
+    # We use 2 alternative methods to add the key because the script can also
+    # be used outside of Jenkins context (in a standalone way)
+    if ! gpg --keyserver keys.gnupg.net --recv-keys 5B1943DD; then
+        sudo apt-key add jenkins/cinder-sofs-validate/scality.gpg
+    else
+        gpg -a --export 5B1943DD | sudo apt-key add -
+    fi
 
     # snmp-mibs-downloader is a dependency. It is only available in Ubuntu multiverse :
     sudo sed -ri "s/^#\s+(.*multiverse.*)/\1/" /etc/apt/sources.list
