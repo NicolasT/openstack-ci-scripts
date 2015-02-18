@@ -109,9 +109,11 @@ EOF
 function install_supervisor() {
     # The following command should automatically enable apache2 mod ssl
     sudo apt-get install --yes scality-supervisor
-    # For some reason, scality-supervisor installs 2 VHost scality-supervisor and scality-supervisor.conf
-    if [[ -f /etc/apache2/sites-available/scality-supervisor ]]; then
-        sudo rm -f /etc/apache2/sites-available/scality-supervisor
+    # For Ubuntu 12 and 14 compatibility, scality-supervisor installs 2 VHost scality-supervisor and scality-supervisor.conf
+    if [[ "$(lsb_release -c -s)" == "trusty" ]]; then
+        sudo rm -f /etc/apache2/sites-*/scality-supervisor
+    else
+        sudo rm -f /etc/apache2/sites-*/scality-supervisor.conf
     fi
 }
 
@@ -160,15 +162,17 @@ function install_sproxyd() {
     # The next line needs the Chord ring driver to be defined first, ie before the Arc ring driver.
     sudo sed -i '0,/"by_path_enabled": / { s/"by_path_enabled": false/"by_path_enabled": true/ }' /etc/sproxyd.conf
 
-    # For some reason, scality-sd-apache2 installs 2 VHost scality-sd.conf and scality-sd
-    if [[ -f /etc/apache2/sites-available/scality-sd ]]; then
-        sudo rm -f /etc/apache2/sites-available/scality-sd
+    # For Ubuntu 12 and 14 compatibility, scality-sd-apache2 installs 2 VHost scality-sd.conf and scality-sd
+    if [[ "$(lsb_release -c -s)" == "trusty" ]]; then
+        sudo rm -f /etc/apache2/sites-*/scality-sd
+    else
+        sudo rm -f /etc/apache2/sites-*/scality-sd.conf
     fi
 
-    if [[ -z "$(grep LimitRequestLine /etc/apache2/sites-available/scality-sd.conf)" ]]; then
+    if [[ -z "$(grep LimitRequestLine /etc/apache2/sites-available/scality-sd*)" ]]; then
       # See http://svn.xe15.com/trac/ticket/12163
-      sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" /etc/apache2/sites-available/scality-sd.conf
-      sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" /etc/apache2/sites-available/scality-sd.conf
+      sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" /etc/apache2/sites-available/scality-sd*
+      sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" /etc/apache2/sites-available/scality-sd*
       sudo service apache2 restart
     fi
 
@@ -260,6 +264,9 @@ Listen 82
     CustomLog \${APACHE_LOG_DIR}/dewpoint_access.log combined
 </VirtualHost>
 EOF
+
+    # For some weird reason, libapache2-scality-mod-dewpoint installs a virtual host in there
+    # Get rid of this vhost because it's not the proper location for vhosts.
     sudo truncate -s 0 /etc/apache2/mods-available/dewpoint.conf
     sudo a2ensite dewpoint.conf
 
@@ -280,6 +287,7 @@ function purge_ring() {
     sudo rm -rf /scality*/disk*/* ; sudo find /var/log/scality-* -mtime +14 -delete
     sudo /etc/init.d/scality-node start && sleep 10
     echo "supervisor nodeJoin $(ifconfig eth0 | sed -nr "s/.*inet addr:([0-9.]+).*/\1/p") 8084" | ringsh && sleep 10
+    # Check the ring state before starting the other services
     if [[ -n "$(ringsh 'supervisor ringStatus MyRing' | grep 'State: RUN')" ]]; then
         sudo /etc/init.d/scality-sproxyd start ; sudo sfused -X -c /etc/sfused.conf; sudo /etc/init.d/scality-sfused start ; sudo mkdir /ring/0/cdmi; sudo service apache2 restart
     fi
