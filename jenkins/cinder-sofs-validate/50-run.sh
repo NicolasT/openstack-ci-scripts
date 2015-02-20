@@ -33,7 +33,7 @@ else
     export DEVSTACK_GATE_TEMPEST_REGEX='tempest.api.volume'
 fi
 
-function pre_test_hook() {
+function pre_test_hook {
     local xtrace=$(set +o | grep xtrace)
     local eerror=$(set +o | grep errexit)
 
