@@ -1,5 +1,12 @@
 #!/bin/bash -xue
 
+test -n "${SUP_ADMIN_LOGIN:-}" || (echo "SUP_ADMIN_LOGIN should be defined." && return 1);
+test -n "${SUP_ADMIN_PASS:-}" || (echo "SUP_ADMIN_PASS should be defined." && return 1);
+test -n "${INTERNAL_MGMT_LOGIN:-}" || (echo "INTERNAL_MGMT_LOGIN should be defined." && return 1);
+test -n "${INTERNAL_MGMT_PASS:-}" || (echo "INTERNAL_MGMT_PASS should be defined." && return 1);
+test -n "${DEBIAN_FRONTEND:-}" || (echo "DEBIAN_FRONTEND should be defined." && return 1);
+test -n "${HOST_IP:-}" || (echo "HOST_IP should be defined." && return 1);
+
 function add_source {
     # subshell trick, do not output the password to stdout
     (set +x; echo "deb [arch=amd64] http://${SCAL_PASS}@packages.scality.com/stable_khamul/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/scality4.list &>/dev/null)
