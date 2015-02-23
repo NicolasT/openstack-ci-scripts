@@ -16,11 +16,12 @@ function configure_cinder_backend_sofs {
     iniset $CINDER_CONF $be_name scality_sofs_config /etc/sfused.conf
     iniset $CINDER_CONF $be_name scality_sofs_mount_point /sofs
 
-    if [[ ${ZUUL_BRANCH} =~ "juno" || ${ZUUL_BRANCH} =~ "icehouse" ]]; then
+    # Todo (jordanP): check why $ZUUL_BRANCH seems not available here
+    #if [[ ${ZUUL_BRANCH} =~ "juno" || ${ZUUL_BRANCH} =~ "icehouse" ]]; then
         # For compatibility with the version of the driver in Juno and Icehouse
         iniset $CINDER_CONF DEFAULT scality_sofs_config /etc/sfused.conf
         iniset $CINDER_CONF DEFAULT scality_sofs_mount_point /sofs
-    fi
+    #fi
 }
 
 function init_cinder_backend_sofs {
