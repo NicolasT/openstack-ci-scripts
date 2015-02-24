@@ -4,7 +4,6 @@ SUP_ADMIN_LOGIN=myName
 SUP_ADMIN_PASS=myPass
 INTERNAL_MGMT_LOGIN=super
 INTERNAL_MGMT_PASS=adminPass
-export DEBIAN_FRONTEND=noninteractive
 
 HOST_IP=$(ip addr show dev eth0 | sed -nr 's/.*inet ([0-9.]+).*/\1/p');
 

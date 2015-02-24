@@ -4,8 +4,9 @@ test -n "${SUP_ADMIN_LOGIN:-}" || (echo "SUP_ADMIN_LOGIN should be defined." && 
 test -n "${SUP_ADMIN_PASS:-}" || (echo "SUP_ADMIN_PASS should be defined." && return 1);
 test -n "${INTERNAL_MGMT_LOGIN:-}" || (echo "INTERNAL_MGMT_LOGIN should be defined." && return 1);
 test -n "${INTERNAL_MGMT_PASS:-}" || (echo "INTERNAL_MGMT_PASS should be defined." && return 1);
-test -n "${DEBIAN_FRONTEND:-}" || (echo "DEBIAN_FRONTEND should be defined." && return 1);
 test -n "${HOST_IP:-}" || (echo "HOST_IP should be defined." && return 1);
+
+export DEBIAN_FRONTEND="noninteractive"
 
 function add_source {
     # subshell trick, do not output the password to stdout
@@ -90,7 +91,7 @@ EOF
     echo "scality-node scality-node/chord-ip string $HOST_IP" | sudo debconf-set-selections
     echo "scality-node scality-node/node-ip string $HOST_IP" | sudo debconf-set-selections
     echo "scality-node scality-node/biziod-count string  1" | sudo debconf-set-selections
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes -q scality-node scality-sagentd scality-nasdk-tools
+    sudo apt-get install --yes -q scality-node scality-sagentd scality-nasdk-tools
 
     _tune_base_scality_node_config
 
@@ -117,7 +118,7 @@ function install_supervisor {
 }
 
 function install_ringsh {
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes -q scality-ringsh
+    sudo apt-get install --yes -q scality-ringsh
     echo "default_config = \
     {   'accessor': None,
         'auth': {   'password': '$INTERNAL_MGMT_PASS', 'user': '$INTERNAL_MGMT_LOGIN'},
@@ -152,7 +153,7 @@ function show_ring_status {
 }
 
 function install_sproxyd {
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes -q scality-sproxyd-apache2
+    sudo apt-get install --yes -q scality-sproxyd-apache2
     sudo sed -i -r 's/bstraplist.*/bstraplist": "'$HOST_IP':4244",/;/general/a\        "ring": "MyRing",' /etc/sproxyd.conf
     sudo sed -i 's/"alias": "chord"/"alias": "chord_path"/' /etc/sproxyd.conf
     sudo sed -i '/by_path_cos/d;/by_path_service_id/d' /etc/sproxyd.conf
