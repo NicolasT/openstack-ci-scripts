@@ -30,7 +30,7 @@ if [[ ${ZUUL_BRANCH} =~ "juno" || ${ZUUL_BRANCH} =~ "icehouse" ]]; then
     export DEVSTACK_GATE_TEMPEST_REGEX='tempest.api.volume.(?!.*(test_volume_backup|volume_type_and_extra_specs))'
     extra_disabled_services="c-bak s-proxy s-object s-container s-account"
 else
-    export DEVSTACK_GATE_TEMPEST_REGEX='tempest.api.volume'
+    export DEVSTACK_GATE_TEMPEST_REGEX='volume'
 fi
 
 function pre_test_hook {
@@ -55,7 +55,7 @@ DEVSTACK_LOCAL_CONFIG_FILE=$(mktemp)
 
 cat > $DEVSTACK_LOCAL_CONFIG_FILE << EOF
 CINDER_ENABLED_BACKENDS=sofs:sofs-1
-BUILD_TIMEOUT=300
+BUILD_TIMEOUT=600
 
 TEMPEST_VOLUME_VENDOR=Scality
 TEMPEST_STORAGE_PROTOCOL=scality
