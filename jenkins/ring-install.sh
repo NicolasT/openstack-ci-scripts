@@ -66,7 +66,8 @@ function add_source_ubuntu {
     # We use 2 alternative methods to add the key because the script can also
     # be used outside of Jenkins context (in a standalone way)
     if ! gpg --keyserver keys.gnupg.net --recv-keys 5B1943DD; then
-        sudo apt-key add jenkins/cinder-sofs-validate/scality.gpg
+        local current_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+        sudo apt-key add $current_dir/scality.gpg
     else
         gpg -a --export 5B1943DD | sudo apt-key add -
     fi
