@@ -37,10 +37,11 @@ function initialize_centos {
     PATH=$PATH:/sbin:/usr/sbin
     # https://docs.scality.com/display/R43/Requirements+and+Recommendations+for+Installation#RequirementsandRecommendationsforInstallation-IncompatibleSoftware
     sudo setenforce 0
+    PKG_INSTALL="sudo yum install -y"
 }
 
 function initialize_ubuntu {
-    echo "Nothing specific here."
+    PKG_INSTALL="sudo apt-get install --yes"
 }
 
 function add_source {
@@ -90,11 +91,11 @@ function _prepare_datadir_on_fs {
 }
 
 function _install_dependencies_ubuntu {
-    sudo apt-get install --yes debconf-utils snmp
+    $PKG_INSTALL debconf-utils snmp
 }
 
 function _install_dependencies_centos {
-    sudo yum -y install net-snmp net-snmp-utils
+    $PKG_INSTALL net-snmp net-snmp-utils
 }
 
 function _tune_base_scality_node_config {
@@ -163,15 +164,11 @@ EOF
     sudo $scnc_path --preseed-file scality-node-preseed
 }
 
-function _install_node_packages_centos {
-    sudo yum install -y scality-node scality-sagentd scality-nasdk-tools
-}
-
 function _install_base_scality_node_centos {
     _create_credentials_file
     _how_sould_that_be_called
     _install_dependencies_centos
-    _install_node_packages_centos
+    $PKG_INSTALL scality-node scality-sagentd scality-nasdk-tools
     _scality_node_config
     _tune_base_scality_node_config
     _configure_sagentd
@@ -200,17 +197,13 @@ function _configure_sagentd {
     snmpwalk -v2c -c public -m+/usr/share/snmp/mibs/scality.mib localhost SNMPv2-SMI::enterprises.37489
 }
 
-function _install_node_packages_ubuntu {
-    sudo apt-get install --yes -q scality-node scality-sagentd scality-nasdk-tools
-}
-
 function _install_base_scality_node_ubuntu {
     # See http://docs.scality.com/display/R43/Setting+Up+Credentials+for+Ring+4.3
     _create_credentials_file
     _how_sould_that_be_called
     _install_dependencies_ubuntu
     _configure_nodes_packages_ubuntu
-    _install_node_packages_ubuntu
+    $PKG_INSTALL -q scality-node scality-sagentd scality-nasdk-tools
     _tune_base_scality_node_config
     _configure_sagentd
 }
@@ -220,7 +213,7 @@ function install_supervisor {
 }
 
 function install_supervisor_centos {
-    sudo yum install -y scality-supervisor
+    $PKG_INSTALL scality-supervisor
     # Fixme : apache complains about that setup when it starts
     sudo mv /etc/httpd/conf.d/t_scality-supervisor{.conf,.conf.bck}
     sudo service scality-supervisor start
@@ -228,7 +221,7 @@ function install_supervisor_centos {
 
 function install_supervisor_ubuntu {
     # The following command should automatically enable apache2 mod ssl
-    sudo apt-get install --yes scality-supervisor
+    $PKG_INSTALL scality-supervisor
     # For Ubuntu 12 and 14 compatibility, scality-supervisor installs 2 VHost scality-supervisor and scality-supervisor.conf
     if [[ "$(lsb_release -c -s)" == "trusty" ]]; then
         sudo rm -f /etc/apache2/sites-*/scality-supervisor
@@ -254,18 +247,9 @@ function _configure_ringsh {
     }" | sudo tee /usr/local/scality-ringsh/ringsh/config.py >/dev/null
 }
 
-function install_ringsh_centos {
-    sudo yum install -y scality-ringsh
-    _configure_ringsh
-}
-
-function install_ringsh_ubuntu {
-    sudo apt-get install --yes -q scality-ringsh
-    _configure_ringsh
-}
-
 function install_ringsh {
-    distro_dispatch install_ringsh_centos install_ringsh_ubuntu
+    $PKG_INSTALL scality-ringsh
+    _configure_ringsh
 }
 
 function build_ring {
@@ -306,7 +290,7 @@ function _postconfigure_sproxyd {
 }
 
 function install_sproxyd_centos {
-    sudo yum install -y scality-sproxyd-httpd
+    $PKG_INSTALL scality-sproxyd-httpd
     # https://docs.scality.com/display/R43/Install+sproxyd+on+CentOS+or+RedHat
     sudo sed -i "s/^#LoadModule fastcgi_module modules\/mod_fastcgi.so/LoadModule fastcgi_module modules\/mod_fastcgi.so/" /etc/httpd/conf.d/fastcgi.conf
     sudo /etc/init.d/httpd restart
@@ -315,7 +299,7 @@ function install_sproxyd_centos {
 }
 
 function install_sproxyd_ubuntu {
-    sudo apt-get install --yes -q scality-sproxyd-apache2
+    $PKG_INSTALL -q scality-sproxyd-apache2
     # For Ubuntu 12 and 14 compatibility, scality-sd-apache2 installs 2 VHost scality-sd.conf and scality-sd
     if [[ "$(lsb_release -c -s)" == "trusty" ]]; then
         sudo rm -f /etc/apache2/sites-*/scality-sd
@@ -332,16 +316,8 @@ function install_sproxyd_ubuntu {
     _postconfigure_sproxyd
 }
 
-function _install_sfused_packages_ubuntu {
-    sudo apt-get install --yes scality-sfused
-}
-
-function _install_sfused_packages_centos {
-    sudo yum install -y scality-sfused
-}
-
 function install_sfused {
-    distro_dispatch _install_sfused_packages_centos _install_sfused_packages_ubuntu
+    $PKG_INSTALL scality-sfused
     sudo tee /etc/sfused.conf <<EOF
 {
     "general": {
