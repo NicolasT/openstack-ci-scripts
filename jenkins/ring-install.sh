@@ -388,59 +388,6 @@ EOF
     sudo /etc/init.d/scality-sagentd restart
 }
 
-function _configure_dewpoint {
-    # See http://svn.xe15.com/trac/ticket/12839
-    if [[ $(lsb_release -c -s) == "trusty" ]]; then
-        sudo a2dismod mpm_event
-        sudo a2enmod mpm_worker
-        sudo sed -i '/StartServers/d;/ServerLimit/d' /etc/apache2/mods-available/mpm_worker.conf
-        sudo sed -i '/<IfModule mpm_worker_module>/a\        StartServers             1' /etc/apache2/mods-available/mpm_worker.conf
-        sudo sed -i '/<IfModule mpm_worker_module>/a\        ServerLimit              1' /etc/apache2/mods-available/mpm_worker.conf
-    fi
-    # On Ubuntu Precise, the packaging of libapache2-scality-mod-dewpoint does the thing correctly
-}
-
-function install_dewpoint {
-    sudo apt-get install --yes libapache2-scality-mod-dewpoint
-
-    if [[ -z "$(mount | grep '/dev/fuse on /ring/0\.')" ]]; then
-        echo "A SOFS filesystem must be properly mounted on /ring/0 in order to configure Dewpoint. Exiting now."
-        return 1
-    fi
-
-    if ! $(sudo test -e /ring/0/cdmi); then
-        sudo mkdir /ring/0/cdmi;
-    fi
-
-    sudo tee /etc/apache2/sites-available/dewpoint.conf <<EOF
-Listen 82
-<VirtualHost *:82>
-    <Location />
-        SetHandler dewpoint_module
-    </Location>
-    LogLevel debug
-    ErrorLog \${APACHE_LOG_DIR}/dewpoint_error.log
-    CustomLog \${APACHE_LOG_DIR}/dewpoint_access.log combined
-</VirtualHost>
-EOF
-
-    # For some weird reason, libapache2-scality-mod-dewpoint installs a virtual host in there
-    # Get rid of this vhost because it's not the proper location for vhosts.
-    sudo truncate -s 0 /etc/apache2/mods-available/dewpoint.conf
-    sudo a2ensite dewpoint.conf
-
-    _configure_dewpoint
-    sudo service apache2 restart
-}
-
-function test_dewpoint {
-    for i in {1..250}; do
-        echo $i;
-        r=$RANDOM; curl -X PUT http://localhost:82/cdmi/$r --data "@/etc/hosts"; curl http://localhost:82/cdmi/$r
-    done
-    sudo rm -rf randomdata; sudo dd if=/dev/vda bs=1M count=64 of=randomdata; curl -X POST -v --data-binary @"randomdata" http://localhost:82/cdmi/$RANDOM
-}
-
 function purge_ring {
     cd ~ ; sudo /etc/init.d/scality-sfused stop; sudo /etc/init.d/scality-sproxyd stop; sudo service apache2 stop; sudo /etc/init.d/scality-node stop
     sudo rm -rf /scality*/disk*/* ; sudo find /var/log/scality-* -mtime +14 -delete
@@ -456,36 +403,4 @@ function test_sproxyd {
     r=$RANDOM
     curl -v -XPUT -H "Expect:" -H "x-scal-usermd: bXl1c2VybWQ=" http://localhost:81/proxy/chord_path/$r --data-binary @/etc/hosts
     curl -v -XGET http://localhost:81/proxy/chord_path/$r
-}
-
-function install_srb_module {
-    if [[ "$(lsb_release -c -s)" != "trusty" ]]; then
-        echo "SRB is only compatible with a recent version of Ubuntu"
-        return 1
-    fi
-    sudo apt-get install --yes lvm2 git build-essential thin-provisioning-tools;
-    if [[ ! -d ~/RestBlockDriver ]]; then
-        cd ~ && git clone https://github.com/scality/RestBlockDriver.git
-    fi
-    cd ~/RestBlockDriver && make && sudo insmod ~/RestBlockDriver/srb.ko
-    if [[ -z "$(grep srb /etc/lvm/lvm.conf)" ]]; then
-        sudo sed -i '/devices {/a\    types = [ "srb", 16 ]' /etc/lvm/lvm.conf;
-    fi
-}
-
-function test_srb_on_dewpoint {
-    if [[ ! -d /sys/class/srb/ ]]; then
-        echo "The SRB kernel module is not loaded"
-        return 1
-    fi
-    url=http://127.0.0.1:82/cdmi
-    echo "$url" | sudo tee /sys/class/srb/add_urls
-    echo "jordanvolume 1G" | sudo tee /sys/class/srb/create
-    echo "jordanvolume srb0" | sudo tee /sys/class/srb/attach
-    sudo mkfs.ext4 /dev/srb0 && sudo mount /dev/srb0 /mnt
-    sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo dd if=/dev/zero of=/mnt/test bs=1M count=10 conv=fsync
-    cd / && sudo umount /mnt
-    echo "srb0" | sudo tee /sys/class/srb/detach
-    echo "jordanvolume" | sudo tee /sys/class/srb/destroy
-    echo "$url" | sudo tee /sys/class/srb/remove_urls
 }
