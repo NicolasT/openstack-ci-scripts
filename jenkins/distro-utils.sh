@@ -111,3 +111,14 @@ function distro_dispatch {
         return 1
     fi
 }
+
+function install_packages {
+    if is_centos ; then
+        sudo yum install -y "$@"
+    elif is_ubuntu; then
+        sudo apt-get install --yes "$@"
+    else
+        echo "Unknown OS"
+        return 1
+    fi
+}
