@@ -20,6 +20,7 @@ export PYTHONUNBUFFERED=true
 
 export DEVSTACK_GATE_TIMEOUT=180
 export DEVSTACK_GATE_TEMPEST=1
+export TEMPEST_CONCURRENCY=1
 export RE_EXEC=true
 
 # The SOFS driver in Juno and Icehouse doesn't support volume backup
