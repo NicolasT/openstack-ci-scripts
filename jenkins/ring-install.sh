@@ -292,8 +292,9 @@ function install_sproxyd_centos {
     install_packages scality-sproxyd-httpd
     # https://docs.scality.com/display/R43/Install+sproxyd+on+CentOS+or+RedHat
     sudo sed -i "s/^#LoadModule fastcgi_module modules\/mod_fastcgi.so/LoadModule fastcgi_module modules\/mod_fastcgi.so/" /etc/httpd/conf.d/fastcgi.conf
-    sudo /etc/init.d/httpd restart
     _configure_sproxyd
+    amend_apache_conf /etc/httpd/conf.d
+    sudo /etc/init.d/httpd restart
     _postconfigure_sproxyd
 }
 
@@ -306,15 +307,22 @@ function install_sproxyd_ubuntu {
         sudo rm -f /etc/apache2/sites-*/scality-sd.conf
     fi
     _configure_sproxyd
-    if [[ -z "$(grep LimitRequestLine /etc/apache2/sites-available/scality-sd*)" ]]; then
-        # See http://svn.xe15.com/trac/ticket/12163
-        sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" /etc/apache2/sites-available/scality-sd*
-        sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" /etc/apache2/sites-available/scality-sd*
-
-        sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" /etc/apache2/sites-available/scality-sd*
-        sudo service apache2 restart
-    fi
+    amend_apache_conf /etc/apache2/sites-available
+    sudo service apache2 restart
     _postconfigure_sproxyd
+}
+
+function amend_apache_conf {
+    local conf_file_prefix=$1/scality-sd
+    if [[ -z "$(grep LimitRequestLine ${conf_file_prefix}*)" ]]; then
+        # See http://svn.xe15.com/trac/ticket/12163
+        sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" ${conf_file_prefix}*
+        sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" ${conf_file_prefix}*
+
+        if is_ubuntu; then
+            sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" ${conf_file_prefix}*
+        fi
+    fi
 }
 
 function install_sfused {
