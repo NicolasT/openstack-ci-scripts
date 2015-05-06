@@ -310,6 +310,8 @@ function install_sproxyd_ubuntu {
         # See http://svn.xe15.com/trac/ticket/12163
         sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" /etc/apache2/sites-available/scality-sd*
         sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" /etc/apache2/sites-available/scality-sd*
+
+        sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" /etc/apache2/sites-available/scality-sd*
         sudo service apache2 restart
     fi
     _postconfigure_sproxyd
