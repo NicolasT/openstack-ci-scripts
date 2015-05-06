@@ -319,7 +319,9 @@ function amend_apache_conf {
         sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" ${conf_file_prefix}*
 
-        sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" ${conf_file_prefix}*
+        if is_ubuntu; then
+            sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" ${conf_file_prefix}*
+        fi
     fi
 }
 
