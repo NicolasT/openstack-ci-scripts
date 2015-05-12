@@ -2,6 +2,7 @@
 
 sudo groupadd jenkins
 sudo gpasswd -a jenkins jenkins
+sudo chown -R jenkins:jenkins /opt/git/
 
 sudo useradd -m -U stack
 sudo gpasswd -a stack wheel
