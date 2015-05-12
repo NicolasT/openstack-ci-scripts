@@ -278,8 +278,11 @@ function _configure_sproxyd {
     sudo sed -i '/by_path_cos/d;/by_path_service_id/d' /etc/sproxyd.conf
     sudo sed -i '/ring_driver:0/a\        "by_path_cos": 0,' /etc/sproxyd.conf
     sudo sed -i '/ring_driver:0/a\        "by_path_service_id": "0xC0",' /etc/sproxyd.conf
-    # The next line needs the Chord ring driver to be defined first, ie before the Arc ring driver.
-    sudo sed -i '0,/"by_path_enabled": / { s/"by_path_enabled": false/"by_path_enabled": true/ }' /etc/sproxyd.conf
+
+    sudo sed -i '/ring_driver:1/a\        "by_path_cos": 1,' /etc/sproxyd.conf
+    sudo sed -i '/ring_driver:1/a\        "by_path_service_id": "0xC1",' /etc/sproxyd.conf
+
+    sudo sed -i '/"by_path_enabled": / { s/"by_path_enabled": false/"by_path_enabled": true/ }' /etc/sproxyd.conf
 }
 
 function _postconfigure_sproxyd {
@@ -385,7 +388,10 @@ function purge_ring {
 }
 
 function test_sproxyd {
-    r=$RANDOM
-    curl -v -XPUT -H "Expect:" -H "x-scal-usermd: bXl1c2VybWQ=" http://localhost:81/proxy/chord_path/$r --data-binary @/etc/hosts
-    curl -v -XGET http://localhost:81/proxy/chord_path/$r
+    for path in 'chord_path' 'arc'; do
+        local r=$RANDOM
+        local url="http://localhost:81/proxy/${path}/${r}"
+        curl -v -XPUT -H "Expect:" -H "x-scal-usermd: bXl1c2VybWQ=" ${url} --data-binary @/etc/hosts
+        curl -v -XGET ${url}
+    done
 }
