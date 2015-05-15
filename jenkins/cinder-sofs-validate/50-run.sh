@@ -4,8 +4,7 @@ sudo groupadd jenkins
 sudo gpasswd -a jenkins jenkins
 sudo chown -R jenkins:jenkins /opt/git/
 
-sudo useradd -m -U stack
-sudo gpasswd -a stack wheel
+echo "#includedir /etc/sudoers.d" | sudo tee -a /etc/sudoers
 
 export ZUUL_PROJECT=${GERRIT_PROJECT:-}
 export ZUUL_BRANCH=${GERRIT_BRANCH:-master}
