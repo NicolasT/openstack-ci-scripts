@@ -20,6 +20,11 @@ test -n "${INTERNAL_MGMT_LOGIN:-}" || (echo "INTERNAL_MGMT_LOGIN should be defin
 test -n "${INTERNAL_MGMT_PASS:-}" || (echo "INTERNAL_MGMT_PASS should be defined." && return 1);
 test -n "${HOST_IP:-}" || (echo "HOST_IP should be defined." && return 1);
 
+if [[ ! ${AllowEncodedSlashes:-} ]]; then
+    AllowEncodedSlashes="Off"
+    echo "Using 'Off' as default value for 'AllowEncodedSlashes'"
+fi
+
 export DEBIAN_FRONTEND="noninteractive"
 
 function source_distro_utils {
@@ -321,10 +326,7 @@ function amend_apache_conf {
         # See http://svn.xe15.com/trac/ticket/12163
         sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" ${conf_file_prefix}*
-
-        if is_ubuntu; then
-            sudo sed -i "/DocumentRoot/a AllowEncodedSlashes NoDecode" ${conf_file_prefix}*
-        fi
+        sudo sed -i "/DocumentRoot/a AllowEncodedSlashes ${AllowEncodedSlashes}" ${conf_file_prefix}*
     fi
 }
 
