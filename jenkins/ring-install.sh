@@ -25,6 +25,14 @@ if [[ ! ${AllowEncodedSlashes:-} ]]; then
     echo "Using 'Off' as default value for 'AllowEncodedSlashes'"
 fi
 
+if [[ ! ${KeepAlive:-} ]]; then
+    KeepAlive="On"
+    echo "Using 'On' as default value for 'KeepAlive'"
+elif [[ $KeepAlive != 'On' &&  $KeepAlive != 'Off' ]]; then
+    echo "The only valid values for KeepAlive are 'On' and 'Off', $KeepAlive is an invalid value"
+    return 1
+fi
+
 export DEBIAN_FRONTEND="noninteractive"
 
 function source_distro_utils {
@@ -365,8 +373,13 @@ function amend_apache_conf {
         sudo sed -i "/DocumentRoot/a LimitRequestLine 32766" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a AllowEncodedSlashes ${AllowEncodedSlashes}" ${conf_file_prefix}*
+        sudo sed -i "/DocumentRoot/a KeepAlive ${KeepAlive}" ${conf_file_prefix}*
+    else 
+        echo "Could not find any file matching this pattern : ${conf_file_prefix} , exiting."
+        return 1
     fi
 }
+
 
 function install_sfused {
     install_packages scality-sfused
