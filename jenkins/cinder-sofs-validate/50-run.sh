@@ -60,6 +60,8 @@ BUILD_TIMEOUT=600
 TEMPEST_VOLUME_VENDOR=Scality
 TEMPEST_STORAGE_PROTOCOL=scality
 
+ATTACH_ENCRYPTED_VOLUME_AVAILABLE=False
+
 disable_service $extra_disabled_services heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
 EOF
 
