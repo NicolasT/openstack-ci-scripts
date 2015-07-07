@@ -44,8 +44,8 @@ source_distro_utils
 
 if is_centos; then
     if [[ ! ${SPROXYD_HTTPD24_CENTOS:-} ]]; then
-        SPROXYD_HTTPD24_CENTOS="1"
-        echo "Using '1' as default value for SPROXYD_HTTP24_CENTOS"
+        SPROXYD_HTTPD24_CENTOS="0"
+        echo "Using '0' as default value for SPROXYD_HTTP24_CENTOS"
     elif [[ $SPROXYD_HTTPD24_CENTOS != '0' &&  $SPROXYD_HTTPD24_CENTOS != '1' ]]; then
         echo "The only valid values for SPROXYD_HTTP24_CENTOS are '0' and '1', $SPROXYD_HTTP24_CENTOS is an invalid value"
         return 1
@@ -443,8 +443,20 @@ function purge_ring {
 function test_sproxyd {
     for path in 'chord_path' 'arc'; do
         local r=$RANDOM
+        local put_response=${r}_put
+        local get_response=${r}_get
         local url="http://localhost:81/proxy/${path}/${r}"
-        curl -v -XPUT -H "Expect:" -H "x-scal-usermd: bXl1c2VybWQ=" ${url} --data-binary @/etc/hosts
-        curl -v -XGET ${url}
+        curl -i -XPUT -H "Expect:" -H "x-scal-usermd: bXl1c2VybWQ=" ${url} --data-binary @/etc/hosts -o $put_response
+        cat $put_response
+        grep '200 OK' $put_response
+        curl -i -XGET ${url} -o $get_response
+        cat $get_response
+        grep '200 OK' $get_response
+        grep "Content-Length: $(stat --printf="%s" /etc/hosts)" $get_response
+        for file in $put_response $get_response; do
+            if [[ -e $file ]]; then
+                rm $file
+            fi
+        done
     done
 }
