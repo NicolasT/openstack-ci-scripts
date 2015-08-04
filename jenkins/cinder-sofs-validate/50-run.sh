@@ -63,7 +63,11 @@ TEMPEST_STORAGE_PROTOCOL=scality
 
 ATTACH_ENCRYPTED_VOLUME_AVAILABLE=False
 
-disable_service $extra_disabled_services heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
+# For some reason devstack-gate overwrite this variable
+FIXED_RANGE=10.0.0.0/24
+
+enable_service q-svc q-agt q-dhcp q-l3 q-meta
+disable_service $extra_disabled_services n-net heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
 EOF
 
 if test -n "${JOB_CINDER_REPO:-}"; then
