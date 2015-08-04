@@ -265,7 +265,8 @@ function _configure_ringsh {
             'adminPort': '6444',
             'dsoName': 'MyRing'
         },
-        'supervisor': {   'url': 'https://$HOST_IP:2443'}
+        'supervisor': {   'url': 'https://$HOST_IP:2443'},
+        'supv2': {   'url': 'http://$HOST_IP:12345'}
     }" | sudo tee /usr/local/scality-ringsh/ringsh/config.py >/dev/null
 }
 
