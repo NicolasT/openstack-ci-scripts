@@ -430,17 +430,6 @@ EOF
     sudo /etc/init.d/scality-sagentd restart
 }
 
-function purge_ring {
-    cd ~ ; sudo /etc/init.d/scality-sfused stop; sudo /etc/init.d/scality-sproxyd stop; sudo service apache2 stop; sudo /etc/init.d/scality-node stop
-    sudo rm -rf /scality*/disk*/* ; sudo find /var/log/scality-* -mtime +14 -delete
-    sudo /etc/init.d/scality-node start && sleep 10
-    echo "supervisor nodeJoin $(ifconfig eth0 | sed -nr "s/.*inet addr:([0-9.]+).*/\1/p") 8084" | ringsh && sleep 10
-    # Check the ring state before starting the other services
-    if [[ -n "$(ringsh 'supervisor ringStatus MyRing' | grep 'State: RUN')" ]]; then
-        sudo /etc/init.d/scality-sproxyd start ; sudo sfused -X -c /etc/sfused.conf; sudo /etc/init.d/scality-sfused start ; sudo mkdir /ring/0/cdmi; sudo service apache2 restart
-    fi
-}
-
 function test_sproxyd {
     for path in 'chord_path' 'arc'; do
         local r=$RANDOM
