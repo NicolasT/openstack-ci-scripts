@@ -29,7 +29,7 @@ function init_cinder_backend_sofs {
 
     local sfused_mount_point=$(mount | grep "/dev/fuse" | grep -v scality | cut -d" " -f 3)
     sudo mkdir $sfused_mount_point/cinder
-    sudo chown $STACK_USER /ring/0/cinder
+    sudo chown $STACK_USER $sfused_mount_point/cinder
     sudo /etc/init.d/scality-sfused stop;
     if [[ ! -d /sofs ]]; then
         sudo mkdir /sofs
