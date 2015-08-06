@@ -27,7 +27,8 @@ function configure_cinder_backend_sofs {
 function init_cinder_backend_sofs {
     local be_name=$1
 
-    sudo mkdir /ring/0/cinder
+    local sfused_mount_point=$(mount | grep "/dev/fuse" | grep -v scality | cut -d" " -f 3)
+    sudo mkdir $sfused_mount_point/cinder
     sudo chown $STACK_USER /ring/0/cinder
     sudo /etc/init.d/scality-sfused stop;
     if [[ ! -d /sofs ]]; then
