@@ -20,6 +20,16 @@ test -n "${INTERNAL_MGMT_LOGIN:-}" || (echo "INTERNAL_MGMT_LOGIN should be defin
 test -n "${INTERNAL_MGMT_PASS:-}" || (echo "INTERNAL_MGMT_PASS should be defined." && return 1);
 test -n "${HOST_IP:-}" || (echo "HOST_IP should be defined." && return 1);
 
+RING_VERSION=${RING_VERSION:-5}
+if [[ $RING_VERSION == 4 ]]; then
+    RING_CODENAME="khamul"
+elif [[ $RING_VERSION == 5 ]]; then
+    RING_CODENAME="lorien"
+else
+    echo "This installer can only install Scality Ring 4 or Ring 5, '$RING_VERSION' is an invalid value"
+    return 1
+fi
+
 if [[ ! ${AllowEncodedSlashes:-} ]]; then
     AllowEncodedSlashes="Off"
     echo "Using 'Off' as default value for 'AllowEncodedSlashes'"
@@ -72,10 +82,10 @@ function add_source {
 
 function add_source_centos {
     set +x
-    sudo sh -c "cat <<-EOF >/etc/yum.repos.d/scality.repo
+    sudo sh -c "cat <<-EOF >/etc/yum.repos.d/scality${RING_VERSION}.repo
 [scality-base]
 name=Centos6 - Scality Base
-baseurl=http://${SCAL_PASS}@packages.scality.com/stable_khamul/centos/6/x86_64/
+baseurl=http://${SCAL_PASS}@packages.scality.com/stable_${RING_CODENAME}/centos/6/x86_64/
 gpgcheck=0
 EOF"
     set -x
@@ -84,15 +94,21 @@ EOF"
 
 function add_source_ubuntu {
     # subshell trick, do not output the password to stdout
-    (set +x; echo "deb [arch=amd64] http://${SCAL_PASS}@packages.scality.com/stable_khamul/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/scality4.list &>/dev/null)
+    (set +x; echo "deb [arch=amd64] http://${SCAL_PASS}@packages.scality.com/stable_${RING_CODENAME}/ubuntu/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/scality${RING_VERSION}.list &>/dev/null)
+
+    if [[ $RING_VERSION == 4 ]]; then
+        local gpg_key=5B1943DD
+    else
+        local gpg_key=4A23AD0E
+    fi
 
     # We use 2 alternative methods to add the key because the script can also
     # be used outside of Jenkins context (in a standalone way)
-    if ! gpg --keyserver keys.gnupg.net --recv-keys 5B1943DD; then
+    if ! gpg --keyserver keys.gnupg.net --recv-keys $gpg_key; then
         local current_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-        sudo apt-key add $current_dir/scality.gpg
+        sudo apt-key add $current_dir/scality${RING_VERSION}.gpg
     else
-        gpg -a --export 5B1943DD | sudo apt-key add -
+        gpg -a --export $gpg_key | sudo apt-key add -
     fi
 
     # snmp-mibs-downloader is a dependency. It is only available in Ubuntu multiverse :
@@ -298,15 +314,21 @@ function install_sproxyd {
 
 function _configure_sproxyd {
     sudo sed -i -r 's/bstraplist.*/bstraplist": "'$HOST_IP':4244",/;/general/a\        "ring": "MyRing",' /etc/sproxyd.conf
-    sudo sed -i 's/"alias": "chord"/"alias": "chord_path"/' /etc/sproxyd.conf
-    sudo sed -i '/by_path_cos/d;/by_path_service_id/d' /etc/sproxyd.conf
-    sudo sed -i '/ring_driver:0/a\        "by_path_cos": 0,' /etc/sproxyd.conf
-    sudo sed -i '/ring_driver:0/a\        "by_path_service_id": "0xC0",' /etc/sproxyd.conf
 
-    sudo sed -i '/ring_driver:1/a\        "by_path_cos": 1,' /etc/sproxyd.conf
-    sudo sed -i '/ring_driver:1/a\        "by_path_service_id": "0xC1",' /etc/sproxyd.conf
+    if [[ $RING_VERSION == 4 ]]; then
+        sudo sed -i 's/"alias": "chord"/"alias": "chord_path"/' /etc/sproxyd.conf
+        sudo sed -i '/by_path_cos/d;/by_path_service_id/d' /etc/sproxyd.conf
+        sudo sed -i '/ring_driver:0/a\        "by_path_cos": 0,' /etc/sproxyd.conf
+        sudo sed -i '/ring_driver:0/a\        "by_path_service_id": "0xC0",' /etc/sproxyd.conf
 
-    sudo sed -i '/"by_path_enabled": / { s/"by_path_enabled": false/"by_path_enabled": true/ }' /etc/sproxyd.conf
+        sudo sed -i '/ring_driver:1/a\        "by_path_cos": 1,' /etc/sproxyd.conf
+        sudo sed -i '/ring_driver:1/a\        "by_path_service_id": "0xC1",' /etc/sproxyd.conf
+
+        sudo sed -i '/"by_path_enabled": / { s/"by_path_enabled": false/"by_path_enabled": true/ }' /etc/sproxyd.conf
+    else
+        # Ring 5 ships with a saner default sproxy.conf which requires less change to support our use cases
+        sudo sed -i -r -e 's/"by_path_cos": 3,/"by_path_cos": 0,/' /etc/sproxyd.conf
+    fi
 }
 
 function _postconfigure_sproxyd {
@@ -387,7 +409,6 @@ function install_sfused {
     sudo tee /etc/sfused.conf <<EOF
 {
     "general": {
-        "mountpoint": "/ring/0",
         "ring": "MyRing",
         "allowed_rootfs_uid": "1000,122,33"
     },
@@ -420,9 +441,15 @@ function install_sfused {
     }
 }
 EOF
-    if [[ -z "$(grep max_data_in_main /etc/sfused.conf)" ]]; then
-        sed -i '/"type": "sparse"/a\        "max_data_in_main": 128768,' /etc/sfused.conf
+
+    if [[ $RING_VERSION == 4 ]]; then
+        # Ring 5 doesn't support the 'mountpoint' parameter anymore
+        sudo sed -i '/"general": /a\        "mountpoint": "/ring/0",' /etc/sfused.conf
+    else
+        # Ring 5 requires the 'rootfs_cache' parameter to be set (the default is '-1')
+        sudo sed -i '/"general": /a\        "rootfs_cache": 0,' /etc/sfused.conf
     fi
+
     # The following command must be run only once. It touches data on the ring, it does nothing at the connector's side
     sudo sfused -X -c /etc/sfused.conf
     sudo /etc/init.d/scality-sfused restart
@@ -431,7 +458,13 @@ EOF
 }
 
 function test_sproxyd {
-    for path in 'chord_path' 'arc'; do
+    # The default alias changed in Ring 5
+    if [[ $RING_VERSION == 4 ]]; then
+        sproxyd_alias="chord_path arc"
+    else
+        sproxyd_alias="bpchord bparc"
+    fi
+    for path in $sproxyd_alias; do
         local r=$RANDOM
         local put_response=${r}_put
         local get_response=${r}_get
