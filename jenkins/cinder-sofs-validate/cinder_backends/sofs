@@ -30,6 +30,13 @@ function init_cinder_backend_sofs {
     local sfused_mount_point=$(mount | grep "/dev/fuse" | grep -v scality | cut -d" " -f 3)
     sudo mkdir $sfused_mount_point/cinder
     sudo chown $STACK_USER $sfused_mount_point/cinder
+
+    # Ring 5 doesn't have a 'sys' dir in rootfs anymore but the
+    # LibvirtScalityVolumeDriver class in Nova expects one for now.
+    if ! sudo test -d $sfused_mount_point/sys; then
+        sudo mkdir $sfused_mount_point/sys
+    fi
+
     sudo /etc/init.d/scality-sfused stop;
     if [[ ! -d /sofs ]]; then
         sudo mkdir /sofs
