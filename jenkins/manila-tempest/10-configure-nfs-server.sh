@@ -2,6 +2,11 @@
 
 if [ $USE_SCALITY_IMPL ]; then
 
+    if [[ ! ${RING_VERSION:-} ]]; then
+        RING_VERSION=4
+        echo "Using ${RING_VERSION} as default value for 'RING_VERSION'"
+    fi
+
     OS_CI_REPOSITORY=https://github.com/scality/openstack-ci-scripts.git
     NODE=$JCLOUDS_IPS
     SCRIPT_FILE=$(mktemp)
@@ -22,7 +27,9 @@ EOF
     cat >> $SCRIPT_FILE << EOF
 set +x
 SCAL_PASS=$SCAL_PASS
+RING_VERSION=$RING_VERSION
 set -x
+
 sudo aptitude install -y git
 git clone $OS_CI_REPOSITORY
 git -C openstack-ci-scripts checkout $JOB_GIT_REVISION
