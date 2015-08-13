@@ -1,5 +1,10 @@
 #!/bin/bash -xue
 
+if [[ ! ${USE_SCALITY_IMPL:-} ]]; then
+    USE_SCALITY_IMPL=1
+    echo "Using ${USE_SCALITY_IMPL} as default value for 'USE_SCALITY_IMPL'"
+fi
+
 if [ $USE_SCALITY_IMPL ]; then
 
     if [[ ! ${RING_VERSION:-} ]]; then
