@@ -26,11 +26,13 @@ SCREEN_LOGDIR="\${DEST}/logs"b
 EOF
 
 if [ $USE_SCALITY_IMPL ]; then
+
+    export MANILA_ENABLED_BACKENDS="ring"
+    export MANILA_DEFAULT_SHARE_TYPE="scality"
+    export MANILA_DEFAULT_SHARE_TYPE_EXTRA_SPECS="share_backend_name=scality_ring"
+
     cat >> devstack/local.conf <<EOF
 [[post-config|/etc/manila/manila.conf]]
-[DEFAULT]
-default_share_type=scality
-enabled_share_backends=ring
 [ring]
 driver_handles_share_servers=False
 share_backend_name=scality_ring
