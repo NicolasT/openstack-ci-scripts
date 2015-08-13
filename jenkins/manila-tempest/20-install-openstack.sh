@@ -10,16 +10,6 @@ if [[ ! ${MANILA_BRANCH:-} ]]; then
     echo "Using ${MANILA_BRANCH} as default value for 'MANILA_BRANCH'"
 fi
 
-if [[ ! ${SCALITY_MANILA_REPO:-} ]]; then
-    SCALITY_MANILA_REPO="https://github.com/scality/manila"
-    echo "Using ${SCALITY_MANILA_REPO} as default value for 'SCALITY_MANILA_REPO'"
-fi
-
-if [[ ! ${SCALITY_MANILA_BRANCH:-} ]]; then
-    SCALITY_MANILA_BRANCH="scality-driver"
-    echo "Using ${SCALITY_MANILA_BRANCH} as default value for 'SCALITY_MANILA_BRANCH'"
-fi
-
 
 ssh-keygen -y -f $HOME/.ssh/id_rsa > $HOME/.ssh/id_rsa.pub
 
@@ -37,7 +27,6 @@ EOF
 
 if [ $USE_SCALITY_IMPL ]; then
     cat >> devstack/local.conf <<EOF
-enable_plugin manila-scality $SCALITY_MANILA_REPO $SCALITY_MANILA_BRANCH
 [[post-config|/etc/manila/manila.conf]]
 [DEFAULT]
 default_share_type=scality
