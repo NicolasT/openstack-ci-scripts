@@ -10,13 +10,22 @@ if [[ ! ${MANILA_BRANCH:-} ]]; then
     echo "Using ${MANILA_BRANCH} as default value for 'MANILA_BRANCH'"
 fi
 
-
 ssh-keygen -y -f $HOME/.ssh/id_rsa > $HOME/.ssh/id_rsa.pub
 
 wget https://bootstrap.pypa.io/ez_setup.py -O - | sudo python;
 sudo easy_install pip
 sudo easy_install -U six
+
+# Clone devstack
 git clone -b master https://github.com/openstack-dev/devstack.git
+
+# Copy bridge configuration scripts for the provider network where manila shares are exposed
+cp jenkins/${JOB_NAME%%/*}/extras.d/* devstack/extras.d
+
+# Source network definitions
+source devstack/extras.d/netdef
+
+# Configure manila
 cp devstack/samples/local.conf devstack/local.conf
 cat >> devstack/local.conf <<EOF
 disable_service horizon n-net
@@ -39,10 +48,9 @@ share_backend_name=scality_ring
 share_driver=manila.share.drivers.scality.driver.ScalityShareDriver
 export_management_host=$JCLOUDS_IPS
 management_user=jenkins
-export_ip=$JCLOUDS_IPS
+export_ip=$RING_EXPORTS_GW
 EOF
 
 fi
-
 
 ./devstack/stack.sh
