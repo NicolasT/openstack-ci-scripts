@@ -38,7 +38,7 @@ driver_handles_share_servers=False
 share_backend_name=scality_ring
 share_driver=manila.share.drivers.scality.driver.ScalityShareDriver
 export_management_host=$JCLOUDS_IPS
-management_user=ubuntu
+management_user=jenkins
 export_ip=$JCLOUDS_IPS
 EOF
 
