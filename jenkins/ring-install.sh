@@ -327,31 +327,6 @@ function _postconfigure_sproxyd {
     sudo /etc/init.d/scality-sagentd restart
 }
 
-
-function httpd24_for_sproxyd {
-    sudo sh -c "cat > /etc/yum.repos.d/epel-httpd24.repo <<EOF
-[epel-httpd24]
-name=httpd-2.4 scl
-baseurl=http://repos.fedorapeople.org/repos/jkaluza/httpd24/epel-6Server/x86_64/
-enabled=1
-gpgcheck=0
-EOF"
-    install_packages httpd24
-
-    sudo mv -t /opt/rh/httpd24/root/etc/httpd/conf.d/ /etc/httpd/conf.d/{scality-sd.conf,_scality}
-    # Apache 2.4 exit with an error if the included files can't be found
-    sudo sed -i "s;Include conf.d/_scality/sindexd.*;;" /opt/rh/httpd24/root/etc/httpd/conf.d/scality-sd.conf
-    sudo sed -i "s;Include conf.d/_scality/srebuild.*;;" /opt/rh/httpd24/root/etc/httpd/conf.d/scality-sd.conf
-    sudo sed -i "s;Include conf.d/_scality/scloned.*;;" /opt/rh/httpd24/root/etc/httpd/conf.d/scality-sd.conf
-
-    sudo sed -i "s/Listen 80//" /opt/rh/httpd24/root/etc/httpd/conf/httpd.conf
-
-    sudo sh -c 'cat > /opt/rh/httpd24/root/etc/httpd/conf.d/sproxyd.conf <<EOF
-ProxyPass "/proxy/" "fcgi://127.0.0.1:10000/"
-EOF'
-    sudo service httpd24-httpd start
-}
-
 function install_sproxyd_centos {
     install_packages scality-sproxyd-httpd
     # https://docs.scality.com/display/R43/Install+sproxyd+on+CentOS+or+RedHat
