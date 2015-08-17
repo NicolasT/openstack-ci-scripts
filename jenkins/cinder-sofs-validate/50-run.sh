@@ -12,7 +12,7 @@ export ZUUL_REF=${GERRIT_REFSPEC:-}
 export ZUUL_PATCHET=${GERRIT_PATCHSET_NUMBER:-}
 export ZUUL_CHANGE=${GERRIT_CHANGE_NUMBER:-}
 
-if [ ! -z "${GERRIT_HOST:-}" ]; then
+if [ -n  "${GERRIT_HOST:-}" ]; then
     export ZUUL_URL=https://$GERRIT_HOST
 fi
 
