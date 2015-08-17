@@ -52,16 +52,6 @@ function source_distro_utils {
 
 source_distro_utils
 
-if is_centos; then
-    if [[ ! ${SPROXYD_HTTPD24_CENTOS:-} ]]; then
-        SPROXYD_HTTPD24_CENTOS="0"
-        echo "Using '0' as default value for SPROXYD_HTTP24_CENTOS"
-    elif [[ $SPROXYD_HTTPD24_CENTOS != '0' &&  $SPROXYD_HTTPD24_CENTOS != '1' ]]; then
-        echo "The only valid values for SPROXYD_HTTP24_CENTOS are '0' and '1', $SPROXYD_HTTP24_CENTOS is an invalid value"
-        return 1
-    fi
-fi
-
 function initialize {
     distro_dispatch initialize_centos initialize_ubuntu
 }
@@ -368,9 +358,6 @@ function install_sproxyd_centos {
     sudo sed -i "s/^#LoadModule fastcgi_module modules\/mod_fastcgi.so/LoadModule fastcgi_module modules\/mod_fastcgi.so/" /etc/httpd/conf.d/fastcgi.conf
     _configure_sproxyd
     amend_apache_conf /etc/httpd/conf.d
-    if [[ $SPROXYD_HTTPD24_CENTOS == '1' ]]; then
-	httpd24_for_sproxyd
-    fi
     sudo service httpd restart
     _postconfigure_sproxyd
 }
