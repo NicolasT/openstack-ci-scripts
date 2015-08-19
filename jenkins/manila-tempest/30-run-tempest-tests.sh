@@ -16,10 +16,11 @@ cd $TEMPEST_DIR
 set +u
 . .tox/full/bin/activate
 set -u
-pip install nose
+pip install junitxml
 
+testr init
 set +e
-nosetests -v -w $TEMPEST_DIR/tempest/api/share/ --exe --with-xunit --xunit-file=${WORKSPACE}/tempest-api.xml
+testr run 'tempest.api.share*' --subunit | subunit2junitxml -o ${WORKSPACE}/manila-share-api.xml
 set -e
 
 cd -
