@@ -28,7 +28,7 @@ source devstack/extras.d/netdef
 # Configure manila
 cp devstack/samples/local.conf devstack/local.conf
 cat >> devstack/local.conf <<EOF
-disable_service horizon n-net
+disable_service horizon n-net n-novnc cinder c-api c-sch c-vol
 enable_service neutron q-svc q-agt q-dhcp q-l3 q-meta
 enable_plugin manila $MANILA_REPO $MANILA_BRANCH
 SCREEN_LOGDIR="\${DEST}/logs"
