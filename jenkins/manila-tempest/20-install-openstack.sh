@@ -35,21 +35,18 @@ SCREEN_LOGDIR="\${DEST}/logs"
 EOF
 
 if [ $USE_SCALITY_IMPL ]; then
-
+    # Manila general section
     export MANILA_ENABLED_BACKENDS="ring"
     export MANILA_DEFAULT_SHARE_TYPE="scality"
     export MANILA_DEFAULT_SHARE_TYPE_EXTRA_SPECS="share_backend_name=scality_ring"
 
-    cat >> devstack/local.conf <<EOF
-[[post-config|/etc/manila/manila.conf]]
-[ring]
-driver_handles_share_servers=False
-share_backend_name=scality_ring
-share_driver=manila.share.drivers.scality.driver.ScalityShareDriver
-export_management_host=$JCLOUDS_IPS
-management_user=jenkins
-export_ip=$RING_EXPORTS_GW
-EOF
+    # Manila ring section
+    export MANILA_OPTGROUP_ring_driver_handles_share_servers=False
+    export MANILA_OPTGROUP_ring_share_backend_name=scality_ring
+    export MANILA_OPTGROUP_ring_share_driver=manila.share.drivers.scality.driver.ScalityShareDriver
+    export MANILA_OPTGROUP_ring_export_management_host=$JCLOUDS_IPS
+    export MANILA_OPTGROUP_ring_management_user=jenkins
+    export MANILA_OPTGROUP_ring_export_ip=$RING_EXPORTS_GW
 
 fi
 
