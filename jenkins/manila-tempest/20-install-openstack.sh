@@ -34,7 +34,7 @@ enable_plugin manila $MANILA_REPO $MANILA_BRANCH
 SCREEN_LOGDIR="\${DEST}/logs"
 EOF
 
-if [ $USE_SCALITY_IMPL ]; then
+if [[ $USE_SCALITY_IMPL == true ]]; then
     # Manila general section
     export MANILA_ENABLED_BACKENDS="ring"
     export MANILA_DEFAULT_SHARE_TYPE="scality"

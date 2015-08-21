@@ -1,11 +1,11 @@
 #!/bin/bash -xue
 
 if [[ ! ${USE_SCALITY_IMPL:-} ]]; then
-    USE_SCALITY_IMPL=1
+    USE_SCALITY_IMPL=true
     echo "Using ${USE_SCALITY_IMPL} as default value for 'USE_SCALITY_IMPL'"
 fi
 
-if [ $USE_SCALITY_IMPL ]; then
+if [[ $USE_SCALITY_IMPL == true ]]; then
 
     if [[ ! ${RING_VERSION:-} ]]; then
         RING_VERSION=4
@@ -58,8 +58,6 @@ sudo pip install git+https://github.com/scality/scality-manila-utils.git
 
 EOF
     set -x
-
-    chmod a+x $SCRIPT_FILE
 
     scp $SCRIPT_FILE $NODE:
     ssh $NODE /bin/bash -xue $(basename $SCRIPT_FILE)
