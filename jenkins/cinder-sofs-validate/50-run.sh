@@ -106,4 +106,13 @@ mkdir jenkins-logs
 cp -R /opt/stack/logs/* jenkins-logs/
 sudo chown jenkins jenkins-logs/*
 
+# Create a test result report
+set +e
+sudo pip install junitxml
+if [ $? -eq 0 ]; then
+	gunzip -c /opt/stack/logs/testrepository.subunit.gz | subunit2junitxml -o ${WORKSPACE}/cinder-sofs-validate.xml
+fi
+touch ${WORKSPACE}/cinder-sofs-validate.xml
+set -e
+
 exit $RC
