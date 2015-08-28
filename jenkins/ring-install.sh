@@ -63,7 +63,7 @@ function initialize_centos {
 }
 
 function initialize_ubuntu {
-    echo "Nothing specific here."
+    :
 }
 
 function add_source {
@@ -106,18 +106,6 @@ function add_source_ubuntu {
     sudo apt-get update
 }
 
-function _prepare_datadir_on_tmpfs {
-    sudo mkdir -p /scalitytest/disk1
-    # be sure we don't mount multiple times
-    if [[ -z "$(mount -l | grep /scalitytest/disk1)" ]]; then
-        sudo mount -t tmpfs -o size=60g tmpfs /scalitytest/disk1
-    fi
-}
-
-function _prepare_datadir_on_fs {
-    sudo mkdir -p /scalitytest/disk1
-}
-
 function _install_dependencies_ubuntu {
     install_packages debconf-utils snmp
 }
@@ -142,6 +130,9 @@ function _tune_base_scality_node_config {
 }
 
 function install_base_scality_node {
+    # A full Tempest volume API run needs at least 40G of disk space
+    sudo mkdir -p /scalitytest/disk1
+    sudo touch /scalitytest/disk1/.ok_for_biziod
     distro_dispatch _install_base_scality_node_centos _install_base_scality_node_ubuntu
 }
 
@@ -159,16 +150,6 @@ function _create_credentials_file {
    }
 }
 EOF
-}
-
-function _how_sould_that_be_called {
-    # A full Tempest volume API run needs at least 40G of disk space
-    if [[ $(free -m | awk '/Mem:/ {print $2}') -gt 65536 ]]; then
-        _prepare_datadir_on_tmpfs
-    else
-        _prepare_datadir_on_fs
-    fi
-    sudo touch /scalitytest/disk1/.ok_for_biziod
 }
 
 function _scality_node_config {
@@ -194,7 +175,6 @@ EOF
 
 function _install_base_scality_node_centos {
     _create_credentials_file
-    _how_sould_that_be_called
     _install_dependencies_centos
     install_packages scality-node scality-sagentd scality-nasdk-tools
     _scality_node_config
@@ -228,7 +208,6 @@ function _configure_sagentd {
 function _install_base_scality_node_ubuntu {
     # See http://docs.scality.com/display/R43/Setting+Up+Credentials+for+Ring+4.3
     _create_credentials_file
-    _how_sould_that_be_called
     _install_dependencies_ubuntu
     _configure_nodes_packages_ubuntu
     install_packages scality-node scality-sagentd scality-nasdk-tools
