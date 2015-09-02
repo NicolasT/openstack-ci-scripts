@@ -10,6 +10,11 @@ if [[ ! ${MANILA_BRANCH:-} ]]; then
     echo "Using ${MANILA_BRANCH} as default value for 'MANILA_BRANCH'"
 fi
 
+if [[ ! ${RING_MGMT_USER:-} ]]; then
+    RING_MGMT_USER="jenkins"
+    echo "Using ${RING_MGMT_USER} as default value for 'RING_MGMT_USER'"
+fi
+
 ssh-keygen -y -f $HOME/.ssh/id_rsa > $HOME/.ssh/id_rsa.pub
 
 wget https://bootstrap.pypa.io/ez_setup.py -O - | sudo python;
@@ -45,7 +50,7 @@ if [[ $USE_SCALITY_IMPL == true ]]; then
     export MANILA_OPTGROUP_ring_share_backend_name=scality_ring
     export MANILA_OPTGROUP_ring_share_driver=manila.share.drivers.scality.driver.ScalityShareDriver
     export MANILA_OPTGROUP_ring_export_management_host=$JCLOUDS_IPS
-    export MANILA_OPTGROUP_ring_management_user=jenkins
+    export MANILA_OPTGROUP_ring_management_user=${RING_MGMT_USER}
     export MANILA_OPTGROUP_ring_export_ip=$RING_EXPORTS_GW
 
 fi
