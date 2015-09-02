@@ -11,5 +11,7 @@ fi
 if [[ -f "/var/log/syslog" ]]; then
     sudo cp /var/log/syslog jenkins-logs/syslog
 fi
+ssh $JCLOUDS_IPS "sudo chmod o+r /var/log/syslog"
+scp $JCLOUDS_IPS:/var/log/syslog jenkins-logs/nfs-server-syslog
 sudo chown jenkins jenkins-logs/*
 exit 0;
