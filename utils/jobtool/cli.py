@@ -300,5 +300,25 @@ def kill(cont, server):
         server_obj.delete()
 
 
+@main.command()
+@click.option('--image', required=True,
+              help='Base image used to spawn from')
+@click.option('--server', required=True,
+              help='Arbitrary name that will be given to the VM')
+@click.option('--server-flavor', required=True,
+              help='Name or ID of the server flavor (S - M - XL,...)')
+@click.option('--ssh-key-name', required=True,
+              help='Nameof the ssh key that will attributed to the VM'
+                   '(check your OS infra available keys)')
+@click.pass_context
+def start(ctx, image, server, server_flavor, ssh_key_name):
+    """Start a server.
+    """
+    server, private_ip, floating_ip = start_server(
+        ctx.obj['nova_client'], image, server,
+        server_flavor, ssh_key_name)
+    click.echo("Server %s started, IP: %s" % (server, floating_ip.ip))
+
+
 if __name__ == '__main__':
     main()
