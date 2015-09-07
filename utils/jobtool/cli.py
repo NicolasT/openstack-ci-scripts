@@ -279,7 +279,7 @@ def connect(cont, ssh_key, user, server):
 
 
 @main.command()
-@click.argument('server', nargs=-1)
+@click.argument('server', nargs=-1, required=True)
 @click.pass_context
 def kill(cont, server):
     """ Destroy the specified servers.
