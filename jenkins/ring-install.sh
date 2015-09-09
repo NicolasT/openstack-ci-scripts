@@ -1,5 +1,10 @@
 #!/bin/bash -xue
 
+# 'initialize' should be called before any other public method invocation.
+# Besides its initializing work it will also check that the linux distribution is supported.
+# 
+# Official distribution supported and tested are : Ubuntu12 Ubuntu14 Centos6 Centos7
+#
 # Public functions : 
 #   * initialize
 #   * add_source
@@ -11,8 +16,6 @@
 #   * install_sproxyd
 #   * install_sfused
 # 
-# 'initialize' should be called before any other public method invocation.
-#
 
 test -n "${SUP_ADMIN_LOGIN:-}" || (echo "SUP_ADMIN_LOGIN should be defined." && return 1);
 test -n "${SUP_ADMIN_PASS:-}" || (echo "SUP_ADMIN_PASS should be defined." && return 1);
@@ -52,7 +55,21 @@ function source_distro_utils {
 
 source_distro_utils
 
+
 function initialize {
+    GetDistro
+    if is_centos; then
+        if [[ ! ($os_RELEASE =~ ^6) && ! ($os_RELEASE =~ ^7) ]]; then
+            echo "This Centos version is not supported : ${os_RELEASE}"
+            return 1
+        elif [[ ($os_RELEASE =~ ^7) && ($RING_VERSION -lt 5) ]]; then
+            echo "Centos7 is only supported starting ring version 5"
+            return 1
+        fi
+    elif ! is_ubuntu; then
+        echo "This distribution version is not supported : ${DISTRO}"
+        return 1
+    fi
     distro_dispatch initialize_centos initialize_ubuntu
 }
 
@@ -71,15 +88,22 @@ function add_source {
 }
 
 function add_source_centos {
+    local centos_version=${os_RELEASE:0:1}
     set +x
     sudo sh -c "cat <<-EOF >/etc/yum.repos.d/scality${RING_VERSION}.repo
 [scality-base]
-name=Centos6 - Scality Base
-baseurl=http://${SCAL_PASS}@packages.scality.com/stable_${RING_CODENAME}/centos/6/x86_64/
+name=Centos - Scality Base
+baseurl=http://${SCAL_PASS}@packages.scality.com/stable_${RING_CODENAME}/centos/${centos_version}/x86_64/
 gpgcheck=0
 EOF"
     set -x
-    sudo rpm -Uvh http://mirror.cogentco.com/pub/linux/epel/6/i386/epel-release-6-8.noarch.rpm
+    local epel_repo
+    if [[ $os_RELEASE =~ ^6 ]]; then
+        epel_repo='http://mirror.cogentco.com/pub/linux/epel/6/i386/epel-release-6-8.noarch.rpm'
+    elif [[ $os_RELEASE =~ ^7 ]]; then
+        epel_repo='http://mirror.cogentco.com/pub/linux/epel/7/x86_64/e/epel-release-7-5.noarch.rpm'
+    fi
+    sudo rpm -Uvh $epel_repo
 }
 
 function add_source_ubuntu {
@@ -125,7 +149,7 @@ function _tune_base_scality_node_config {
         conf_has_changed=true
     fi
     if $conf_has_changed; then
-        sudo service scality-node restart
+        service_cmd scality-node restart
     fi
 }
 
@@ -199,8 +223,8 @@ function _configure_sagentd {
     sudo sed -i -r '/^agentAddress/d;s/.*rocommunity public  default.*/rocommunity public  default/' /etc/snmp/snmpd.conf
     sudo sed -i 's#/tmp/oidlist.txt#/var/lib/scality-sagentd/oidlist.txt#' /usr/local/scality-sagentd/snmpd_proxy_file.py
     sudo sed -i "/ip_whitelist:/a - $HOST_IP" /etc/sagentd.yaml
-    sudo /etc/init.d/scality-sagentd restart
-    sudo /etc/init.d/snmpd stop; sleep 2; sudo /etc/init.d/snmpd start
+    service_cmd scality-sagentd restart
+    service_cmd snmpd stop; sleep 2; service_cmd snmpd start
     # Check to see if SNMP is up and running
     snmpwalk -v2c -c public -m+/usr/share/snmp/mibs/scality.mib localhost SNMPv2-SMI::enterprises.37489
 }
@@ -223,7 +247,7 @@ function install_supervisor_centos {
     install_packages scality-supervisor
     # Fixme : apache complains about that setup when it starts
     sudo mv /etc/httpd/conf.d/t_scality-supervisor{.conf,.conf.bck}
-    sudo service scality-supervisor start
+    service_cmd scality-supervisor start
 }
 
 function install_supervisor_ubuntu {
@@ -301,9 +325,9 @@ function _configure_sproxyd {
 }
 
 function _postconfigure_sproxyd {
-    sudo /etc/init.d/scality-sproxyd restart
+    service_cmd scality-sproxyd restart
     sudo /usr/local/scality-sagentd/sagentd-manageconf -c /etc/sagentd.yaml add `hostname -s`-sproxyd type=sproxyd ssl=0 port=10000 address=$HOST_IP path=/run/scality/connectors/sproxyd
-    sudo /etc/init.d/scality-sagentd restart
+    service_cmd scality-sagentd restart
 }
 
 function install_sproxyd_centos {
@@ -312,7 +336,7 @@ function install_sproxyd_centos {
     sudo sed -i "s/^#LoadModule fastcgi_module modules\/mod_fastcgi.so/LoadModule fastcgi_module modules\/mod_fastcgi.so/" /etc/httpd/conf.d/fastcgi.conf
     _configure_sproxyd
     amend_apache_conf /etc/httpd/conf.d
-    sudo service httpd restart
+    service_cmd httpd restart
     _postconfigure_sproxyd
 }
 
@@ -338,7 +362,7 @@ function amend_apache_conf {
         sudo sed -i "/DocumentRoot/a LimitRequestFieldSize 32766" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a AllowEncodedSlashes ${AllowEncodedSlashes}" ${conf_file_prefix}*
         sudo sed -i "/DocumentRoot/a KeepAlive ${KeepAlive}" ${conf_file_prefix}*
-    else 
+    else
         echo "Could not find any file matching this pattern : ${conf_file_prefix} , exiting."
         return 1
     fi
@@ -392,10 +416,10 @@ EOF
     fi
 
     # The following command must be run only once. It touches data on the ring, it does nothing at the connector's side
-    sudo sfused -X -c /etc/sfused.conf
-    sudo /etc/init.d/scality-sfused restart
+    sudo $(which sfused) -X -c /etc/sfused.conf
+    service_cmd scality-sfused restart
     sudo /usr/local/scality-sagentd/sagentd-manageconf -c /etc/sagentd.yaml add `hostname -s`-sfused type=sfused port=7002 address=$HOST_IP path=/run/scality/connectors/sfused
-    sudo /etc/init.d/scality-sagentd restart
+    service_cmd scality-sagentd restart
 }
 
 function test_sproxyd {

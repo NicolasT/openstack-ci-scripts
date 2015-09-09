@@ -8,16 +8,25 @@ export HOST_IP=$(/sbin/ip addr show dev eth0 | sed -nr 's/.*inet ([0-9.]+).*/\1/
 
 source jenkins/ring-install.sh
 
-initialize
-add_source
-install_base_scality_node
-install_supervisor
-install_ringsh
-build_ring
-show_ring_status
-install_sproxyd
-test_sproxyd
-install_sfused
+GetDistro
+
+if [[ ($os_RELEASE =~ ^7) && ($RING_VERSION -lt 5) ]]; then
+    if initialize; then
+        echo "initialize should fail in that configuration"
+        exit 1
+    fi
+else
+    initialize
+    add_source
+    install_base_scality_node
+    install_supervisor
+    install_ringsh
+    build_ring
+    show_ring_status
+    install_sproxyd
+    test_sproxyd
+    install_sfused
+fi
 
 cd $WORKSPACE
 mkdir jenkins-logs
