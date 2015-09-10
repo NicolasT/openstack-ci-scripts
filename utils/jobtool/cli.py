@@ -44,7 +44,7 @@ def start_server(nova_client, image_name, server_name, server_flavor,
         key_name=ssh_key_name)
     while server.status != 'ACTIVE':
         time.sleep(2)
-        print "Waiting for server to boot"
+        click.echo("Waiting for server %s to boot" % server_name)
         server = find_server(nova_client, server_name)
         assert server is not None, "No server '%s' found" % server_name
 
@@ -131,17 +131,23 @@ class ManilaTempestJob(object):
     job_name = "manila-tempest"
 
     def __init__(self, nova_client, ssh_wrapper, repo, raw_jo_params,
-                 user, extra_image, extra_server, ssh_key_name,
+                 user, extra_vms_params, ssh_key_name,
                  server_flavor):
         self.nova_client = nova_client
         self.ssh_wrapper = ssh_wrapper
         self.repo = repo
         self.user = user
-        self.extra_image = extra_image
-        self.extra_server = extra_server
         self.ssh_key_name = ssh_key_name
         self.server_flavor = server_flavor
+        self.extra_vms = self._read_extra_vms(extra_vms_params)
         self.job_params = self._read_job_params(raw_jo_params)
+
+    def _read_extra_vms(self, extra_vms):
+        result = dict()
+        for extra_vm in extra_vms:
+            [image, server] = extra_vm.split(';')
+            result[image] = dict(name=server)
+        return result
 
     def _read_job_params(self, raw_job_params):
         result = dict()
@@ -150,24 +156,33 @@ class ManilaTempestJob(object):
             result[param] = value
         return result
 
+    def _start_extra_vms(self):
+        for image, details in self.extra_vms.items():
+            server, details['private_ip'], floating_ip = start_server(
+                self.nova_client, image, details['name'],
+                self.server_flavor, self.ssh_key_name, add_floating_ip=False)
+
     def run(self):
         self.ssh_wrapper.install('git', 'vim')
         self.ssh_wrapper.create_pkey()
         self.ssh_wrapper.clone_repo(
             self.repo, self.job_params['JOB_GIT_REVISION'])
-        extra_server, private_ip, floating_ip = start_server(
-            self.nova_client, self.extra_image, self.extra_server,
-            self.server_flavor, self.ssh_key_name, add_floating_ip=False)
-        self._write_tosource(private_ip)
+        self._start_extra_vms()
+        self._write_tosource()
         self._write_clean()
 
-    def _write_tosource(self, private_ip):
+    def _write_tosource(self):
+
+        def extra_vms_private_ips():
+            return ','.join(details['private_ip'] for details
+                            in self.extra_vms.values())
+
         data = """#!/bin/bash
 export LC_ALL=en_US.UTF-8
 export WORKSPACE=$(pwd)/openstack-ci-scripts
 export JOB_NAME="%s"
 export JCLOUDS_IPS="%s"
-""" % (self.job_name, private_ip)
+""" % (self.job_name, extra_vms_private_ips())
         if self.job_params:
             for param, value in self.job_params.items():
                 data += "export %s=%s\n" % (param, value)
@@ -244,10 +259,10 @@ def bootstrap(ctx, image, server, server_flavor, user,
 
 
 @bootstrap.command()
-@click.option('--extra-image', required=True)
-@click.option('--extra-server', required=True)
+@click.option('--extra-vm', multiple=True, required=True,
+              help='IMAGE_NAME;SERVER_NAME parameter')
 @click.pass_context
-def manila_tempest(ctx, extra_image, extra_server):
+def manila_tempest(ctx, extra_vm):
     """manila-tempest job specific operations :
     an additionnal VM will gets spawned.
     """
@@ -255,9 +270,8 @@ def manila_tempest(ctx, extra_image, extra_server):
     cli_args.update(ctx.params)
     ManilaTempestJob(
         ctx.obj['nova_client'], ctx.obj['ssh_wrapper'], cli_args['repo'],
-        cli_args['param'], cli_args['user'], cli_args['extra_image'],
-        cli_args['extra_server'], cli_args['ssh_key_name'],
-        cli_args['server_flavor']).run()
+        cli_args['param'], cli_args['user'], extra_vm,
+        cli_args['ssh_key_name'], cli_args['server_flavor']).run()
     interactive_connect(cli_args['user'], ctx.obj['ip'], cli_args['ssh_key'])
 
 
