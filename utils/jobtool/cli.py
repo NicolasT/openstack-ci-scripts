@@ -141,6 +141,13 @@ class Job(object):
         self.server_flavor = server_flavor
         self.job_params = self._read_job_params(raw_jo_params)
 
+    def _read_job_params(self, raw_job_params):
+        result = dict()
+        for param_value in raw_job_params:
+            [param, value] = param_value.split('=')
+            result[param] = value
+        return result
+
     def write_tosource(self, extra_data=None):
         data = """#!/bin/bash
 export LC_ALL=en_US.UTF-8
@@ -175,13 +182,6 @@ class ManilaTempestJob(Job):
         for extra_vm in extra_vms:
             [image, server] = extra_vm.split(';')
             result[image] = dict(name=server)
-        return result
-
-    def _read_job_params(self, raw_job_params):
-        result = dict()
-        for param_value in raw_job_params:
-            [param, value] = param_value.split('=')
-            result[param] = value
         return result
 
     def _start_extra_vms(self):
