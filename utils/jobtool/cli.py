@@ -132,7 +132,7 @@ class Job(object):
 
     def __init__(
             self, nova_client, ssh_wrapper, repo, raw_jo_params,
-            user, extra_image, extra_server, ssh_key_name, server_flavor):
+            user, ssh_key_name, server_flavor):
         self.nova_client = nova_client
         self.ssh_wrapper = ssh_wrapper
         self.repo = repo
@@ -163,13 +163,12 @@ class ManilaTempestJob(Job):
 
     def __init__(
             self, nova_client, ssh_wrapper, repo, raw_jo_params,
-            user, extra_image, extra_server, ssh_key_name,
+            user, extra_vms_params, ssh_key_name,
             server_flavor):
         super(ManilaTempestJob, self).__init__(
             nova_client, ssh_wrapper, repo, raw_jo_params,
             user, ssh_key_name, server_flavor)
-        self.extra_image = extra_image
-        self.extra_server = extra_server
+        self.extra_vms = self._read_extra_vms(extra_vms_params)
 
     def _read_extra_vms(self, extra_vms):
         result = dict()
