@@ -106,9 +106,44 @@ function distro_dispatch {
         $1
     elif is_ubuntu; then
         $2
+    fi
+}
+
+#######################################
+# Issue the given command on th given service
+# using initV
+# Arguments:
+# $1 : service
+# $2 : command
+#######################################
+function initv_service {
+    sudo service $1 $2
+}
+
+#######################################
+# Issue the given command on th given service
+# using initD
+# Arguments:
+# $1 : service
+# $2 : command
+#######################################
+function initd_service {
+    sudo systemctl $2 "${1}.service"
+}
+
+#######################################
+# Issue the given command on th given service
+# will use initV o initD depending on the underlying
+# distribution.
+# Arguments:
+# $1 : service
+# $2 : command
+#######################################
+function service_cmd {
+    if is_centos && [[ $os_RELEASE =~ ^7 ]]; then
+        initd_service $1 $2
     else
-        echo "Unknown OS"
-        return 1
+        initv_service $1 $2
     fi
 }
 
@@ -117,8 +152,5 @@ function install_packages {
         sudo yum install -y "$@"
     elif is_ubuntu; then
         sudo apt-get install --yes "$@"
-    else
-        echo "Unknown OS"
-        return 1
     fi
 }
