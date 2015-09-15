@@ -17,9 +17,16 @@ def find_available_ip(client):
             return ip
 
 
-def find_server(client, server_name):
+def find_server(client, server_str):
+    """Find the server specified by server_str
+
+    Args:
+        server_str: the name or id of the server
+    Returns:
+        the server instance if one is found, None otherwise.
+    """
     for server in client.servers.list():
-        if server.name == server_name:
+        if server.name == server_str or server.id == server_str:
             return server
 
 
