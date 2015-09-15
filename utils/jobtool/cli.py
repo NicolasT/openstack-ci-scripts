@@ -17,9 +17,16 @@ def find_available_ip(client):
             return ip
 
 
-def find_server(client, server_name):
+def find_server(client, server_str):
+    """Find the server specified by server_str
+
+    Args:
+        server_str: the name or id of the server
+    Returns:
+        the server instance if one is found, None otherwise.
+    """
     for server in client.servers.list():
-        if server.name == server_name:
+        if server.name == server_str or server.id == server_str:
             return server
 
 
@@ -44,7 +51,7 @@ def start_server(nova_client, image_name, server_name, server_flavor,
         key_name=ssh_key_name)
     while server.status != 'ACTIVE':
         time.sleep(2)
-        print "Waiting for server to boot"
+        click.echo("Waiting for server %s to boot" % server_name)
         server = find_server(nova_client, server_name)
         assert server is not None, "No server '%s' found" % server_name
 
@@ -124,21 +131,19 @@ def interactive_connect(user, ip, ssh_key):
     subprocess.call(" ".join(cmd), shell=True)
 
 
-class ManilaTempestJob(object):
-    """ mandatory job_params : JOB_GIT_REVISION
+class Job(object):
+    """Base class for any 'boostrapable' job.
     """
 
     job_name = "manila-tempest"
 
-    def __init__(self, nova_client, ssh_wrapper, repo, raw_jo_params,
-                 user, extra_image, extra_server, ssh_key_name,
-                 server_flavor):
+    def __init__(
+            self, nova_client, ssh_wrapper, repo, raw_jo_params,
+            user, ssh_key_name, server_flavor):
         self.nova_client = nova_client
         self.ssh_wrapper = ssh_wrapper
         self.repo = repo
         self.user = user
-        self.extra_image = extra_image
-        self.extra_server = extra_server
         self.ssh_key_name = ssh_key_name
         self.server_flavor = server_flavor
         self.job_params = self._read_job_params(raw_jo_params)
@@ -150,30 +155,67 @@ class ManilaTempestJob(object):
             result[param] = value
         return result
 
+    def write_tosource(self, extra_data=None):
+        data = """#!/bin/bash
+export LC_ALL=en_US.UTF-8
+export WORKSPACE=$(pwd)/openstack-ci-scripts
+export JOB_NAME="%s"
+""" % self.job_name
+        for param, value in self.job_params.items():
+            data += "export %s=%s\n" % (param, value)
+        if extra_data:
+            data += extra_data
+        path = '/home/%s/tosource.sh' % self.user
+        self.ssh_wrapper.write_file(data, path)
+
+
+class ManilaTempestJob(Job):
+    """ mandatory job_params : JOB_GIT_REVISION
+    """
+
+    job_name = "manila-tempest"
+
+    def __init__(
+            self, nova_client, ssh_wrapper, repo, raw_jo_params,
+            user, extra_vms_params, ssh_key_name,
+            server_flavor):
+        super(ManilaTempestJob, self).__init__(
+            nova_client, ssh_wrapper, repo, raw_jo_params,
+            user, ssh_key_name, server_flavor)
+        self.extra_vms = self._read_extra_vms(extra_vms_params)
+
+    def _read_extra_vms(self, extra_vms):
+        result = dict()
+        for extra_vm in extra_vms:
+            [image, server] = extra_vm.split(';')
+            result[image] = dict(name=server)
+        return result
+
+    def _start_extra_vms(self):
+        for image, details in self.extra_vms.items():
+            server, details['private_ip'], floating_ip = start_server(
+                self.nova_client, image, details['name'],
+                self.server_flavor, self.ssh_key_name, add_floating_ip=False)
+
     def run(self):
         self.ssh_wrapper.install('git', 'vim')
         self.ssh_wrapper.create_pkey()
         self.ssh_wrapper.clone_repo(
             self.repo, self.job_params['JOB_GIT_REVISION'])
-        extra_server, private_ip, floating_ip = start_server(
-            self.nova_client, self.extra_image, self.extra_server,
-            self.server_flavor, self.ssh_key_name, add_floating_ip=False)
-        self._write_tosource(private_ip)
+        self._start_extra_vms()
+        self._custom_write_tosource()
         self._write_clean()
 
-    def _write_tosource(self, private_ip):
-        data = """#!/bin/bash
-export LC_ALL=en_US.UTF-8
-export WORKSPACE=$(pwd)/openstack-ci-scripts
-export JOB_NAME="%s"
-export JCLOUDS_IPS="%s"
-""" % (self.job_name, private_ip)
-        if self.job_params:
-            for param, value in self.job_params.items():
-                data += "export %s=%s\n" % (param, value)
+    def _custom_write_tosource(self):
 
-        path = '/home/%s/tosource.sh' % self.user
-        self.ssh_wrapper.write_file(data, path)
+        def extra_vms_private_ips():
+            return ','.join(details['private_ip'] for details
+                            in self.extra_vms.values())
+
+        data = """
+export JCLOUDS_IPS="%s"
+""" % extra_vms_private_ips()
+        self.write_tosource(data)
 
     def _write_clean(self):
         data = """#!/bin/bash -xue
@@ -186,6 +228,18 @@ sudo rm -r /opt/stack/manila-scality
 """
         path = '/home/%s/clean.sh' % self.user
         self.ssh_wrapper.write_file(data, path, 0755)
+
+
+class RingInstallJob(Job):
+
+    job_name = "manila-tempest-test"
+
+    def run(self):
+        self.ssh_wrapper.install('git', 'vim')
+        self.ssh_wrapper.create_pkey()
+        self.ssh_wrapper.clone_repo(
+            self.repo, self.job_params['JOB_GIT_REVISION'])
+        self.write_tosource()
 
 
 @click.group()
@@ -244,10 +298,10 @@ def bootstrap(ctx, image, server, server_flavor, user,
 
 
 @bootstrap.command()
-@click.option('--extra-image', required=True)
-@click.option('--extra-server', required=True)
+@click.option('--extra-vm', multiple=True, required=True,
+              help='IMAGE_NAME;SERVER_NAME parameter')
 @click.pass_context
-def manila_tempest(ctx, extra_image, extra_server):
+def manila_tempest(ctx, extra_vm):
     """manila-tempest job specific operations :
     an additionnal VM will gets spawned.
     """
@@ -255,8 +309,20 @@ def manila_tempest(ctx, extra_image, extra_server):
     cli_args.update(ctx.params)
     ManilaTempestJob(
         ctx.obj['nova_client'], ctx.obj['ssh_wrapper'], cli_args['repo'],
-        cli_args['param'], cli_args['user'], cli_args['extra_image'],
-        cli_args['extra_server'], cli_args['ssh_key_name'],
+        cli_args['param'], cli_args['user'], extra_vm,
+        cli_args['ssh_key_name'], cli_args['server_flavor']).run()
+    interactive_connect(cli_args['user'], ctx.obj['ip'], cli_args['ssh_key'])
+
+@bootstrap.command()
+@click.pass_context
+def ring_install(ctx):
+    """Bootstrap the ring_install_test job
+    """
+    cli_args = ctx.obj['bootstrap-params'].copy()
+    cli_args.update(ctx.params)
+    RingInstallJob(
+        ctx.obj['nova_client'], ctx.obj['ssh_wrapper'], cli_args['repo'],
+        cli_args['param'], cli_args['user'], cli_args['ssh_key_name'],
         cli_args['server_flavor']).run()
     interactive_connect(cli_args['user'], ctx.obj['ip'], cli_args['ssh_key'])
 
@@ -279,7 +345,7 @@ def connect(cont, ssh_key, user, server):
 
 
 @main.command()
-@click.argument('server', nargs=-1)
+@click.argument('server', nargs=-1, required=True)
 @click.pass_context
 def kill(cont, server):
     """ Destroy the specified servers.
@@ -298,6 +364,26 @@ def kill(cont, server):
             client.floating_ips.delete(ip_obj)
 
         server_obj.delete()
+
+
+@main.command()
+@click.option('--image', required=True,
+              help='Base image used to spawn from')
+@click.option('--server', required=True,
+              help='Arbitrary name that will be given to the VM')
+@click.option('--server-flavor', required=True,
+              help='Name or ID of the server flavor (S - M - XL,...)')
+@click.option('--ssh-key-name', required=True,
+              help='Nameof the ssh key that will attributed to the VM'
+                   '(check your OS infra available keys)')
+@click.pass_context
+def start(ctx, image, server, server_flavor, ssh_key_name):
+    """Start a server.
+    """
+    server, private_ip, floating_ip = start_server(
+        ctx.obj['nova_client'], image, server,
+        server_flavor, ssh_key_name)
+    click.echo("Server %s started, IP: %s" % (server, floating_ip.ip))
 
 
 if __name__ == '__main__':
