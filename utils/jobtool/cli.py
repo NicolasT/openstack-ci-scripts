@@ -94,8 +94,8 @@ class SSHClientWrapper(object):
 
     def command(self, cmd):
         stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
-        print stdout.read()
-        print stderr.read()
+        click.echo(stdout.read())
+        click.echo(stderr.read())
 
     def create_pkey(self):
         cmd = ["openssl genrsa -aes128 -passout pass:x",
