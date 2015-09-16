@@ -242,6 +242,20 @@ class RingInstallJob(Job):
         self.write_tosource()
 
 
+class SwiftFunctionalJob(Job):
+
+    job_name = "swift-functional-tests"
+
+    def run(self):
+        self.ssh_wrapper.install('git', 'vim')
+        self.ssh_wrapper.create_pkey()
+        self.ssh_wrapper.clone_repo(
+            self.repo, self.job_params['JOB_GIT_REVISION'])
+        self.write_tosource()
+        self.ssh_wrapper.command(
+            'cd ScalitySproxydSwift; git submodule init; git submodule update')
+
+
 @click.group()
 @click.option('--os-username', envvar='OS_USERNAME', required=True)
 @click.option('--os-password', envvar='OS_PASSWORD', required=True)
@@ -321,6 +335,20 @@ def ring_install(ctx):
     cli_args = ctx.obj['bootstrap-params'].copy()
     cli_args.update(ctx.params)
     RingInstallJob(
+        ctx.obj['nova_client'], ctx.obj['ssh_wrapper'], cli_args['repo'],
+        cli_args['param'], cli_args['user'], cli_args['ssh_key_name'],
+        cli_args['server_flavor']).run()
+    interactive_connect(cli_args['user'], ctx.obj['ip'], cli_args['ssh_key'])
+
+
+@bootstrap.command()
+@click.pass_context
+def swift_functional(ctx):
+    """Bootstrap the ring_install_test job
+    """
+    cli_args = ctx.obj['bootstrap-params'].copy()
+    cli_args.update(ctx.params)
+    SwiftFunctionalJob(
         ctx.obj['nova_client'], ctx.obj['ssh_wrapper'], cli_args['repo'],
         cli_args['param'], cli_args['user'], cli_args['ssh_key_name'],
         cli_args['server_flavor']).run()
