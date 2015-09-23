@@ -2,6 +2,7 @@
 
 import subprocess
 import time
+import urlparse
 
 import click
 import novaclient.client
@@ -155,12 +156,17 @@ class Job(object):
             result[param] = value
         return result
 
+    @property
+    def repo_top_dir(self):
+        path = urlparse.urlparse(self.repo).path
+        return path.split('/')[-1].split('.')[0]
+
     def write_tosource(self, extra_data=None):
         data = """#!/bin/bash
 export LC_ALL=en_US.UTF-8
-export WORKSPACE=$(pwd)/openstack-ci-scripts
+export WORKSPACE=$(pwd)/%s
 export JOB_NAME="%s"
-""" % self.job_name
+""" % (self.repo_top_dir, self.job_name)
         for param, value in self.job_params.items():
             data += "export %s=%s\n" % (param, value)
         if extra_data:
