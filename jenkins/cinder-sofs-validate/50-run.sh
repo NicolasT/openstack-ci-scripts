@@ -108,7 +108,7 @@ sudo chown jenkins jenkins-logs/*
 
 # Create a test result report
 set +e
-sudo pip install junitxml
+sudo pip install python-subunit junitxml
 if [ $? -eq 0 ]; then
 	gunzip -c /opt/stack/logs/testrepository.subunit.gz | subunit2junitxml -o ${WORKSPACE}/cinder-sofs-validate.xml
 fi
