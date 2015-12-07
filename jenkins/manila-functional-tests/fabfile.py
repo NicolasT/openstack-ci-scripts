@@ -34,8 +34,8 @@ def add_apt_repositories(credentials):
     )
 
     # Add GPG key.
-    sudo('gpg --keyserver pool.sks-keyservers.net --recv-keys %s' % gpg_key)
-    sudo('gpg -a --export 4A23AD0E | apt-key add -')
+    put('../scality5.gpg', '/tmp')
+    sudo('apt-key add /tmp/scality5.gpg')
 
     # Hide command execution, as well as any errors to not leak credentials
     with settings(hide('running', 'aborts', 'warnings')):
