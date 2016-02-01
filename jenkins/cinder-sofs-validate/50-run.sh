@@ -23,34 +23,8 @@ export DEVSTACK_GATE_TEMPEST=1
 export TEMPEST_CONCURRENCY=2
 export RE_EXEC=true
 
-# The SOFS driver in Juno and Icehouse doesn't support volume backup
-# nor is compatible with "cinder multi backend".
-# Since we don't run volume backup, we don't need Swift
-extra_disabled_services=""
-if [[ ${ZUUL_BRANCH} =~ "juno" || ${ZUUL_BRANCH} =~ "icehouse" ]]; then
-    export DEVSTACK_GATE_TEMPEST_REGEX='tempest.api.volume.(?!.*(test_volume_backup|volume_type_and_extra_specs))'
-    extra_disabled_services="c-bak s-proxy s-object s-container s-account"
-else
-    export DEVSTACK_GATE_TEMPEST_REGEX='volume'
-fi
 
-function pre_test_hook {
-    local xtrace=$(set +o | grep xtrace)
-    local eerror=$(set +o | grep errexit)
-
-    set -o xtrace
-    set -o errexit
-
-    echo "Running pre test hook"
-
-    echo "Setting up devstack utility scripts"
-    sudo cp jenkins/cinder-sofs-validate/cinder_backends/sofs /opt/stack/new/devstack/lib/cinder_backends/
-    sudo cp jenkins/cinder-sofs-validate/extras.d/60-sofs.sh /opt/stack/new/devstack/extras.d/
-
-    $eerror
-    $xtrace
-}
-export -f pre_test_hook
+export DEVSTACK_GATE_TEMPEST_REGEX='volume'
 
 DEVSTACK_LOCAL_CONFIG_FILE=$(mktemp)
 
@@ -58,22 +32,20 @@ cat > $DEVSTACK_LOCAL_CONFIG_FILE << EOF
 CINDER_ENABLED_BACKENDS=sofs:sofs-1
 BUILD_TIMEOUT=300
 
-TEMPEST_VOLUME_VENDOR=Scality
-TEMPEST_STORAGE_PROTOCOL=scality
-
 ATTACH_ENCRYPTED_VOLUME_AVAILABLE=False
 
 # For some reason devstack-gate overwrite this variable
 FIXED_RANGE=10.0.0.0/24
 
 enable_service q-svc q-agt q-dhcp q-l3 q-meta
-disable_service $extra_disabled_services n-net heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
+disable_service n-net heat h-eng h-api h-api-cfn h-api-cw horizon trove tr-api tr-cond tr-tmgr sahara ceilometer-acompute ceilometer-acentral ceilometer-anotification ceilometer-collector ceilometer-alarm-evaluator ceilometer-alarm-notifier ceilometer-api
 
 # 167.88.149.196 is a physical server in the Scality OpenStack Lab. It hosts a copy
 # of github.com/scality/devstack-plugin-scality to avoid Github's rate limiting.
 enable_plugin scality git://167.88.149.196/devstack-plugin-scality
 SCALITY_SPROXYD_ENDPOINTS=http://127.0.0.1:81/proxy/bpchord
 USE_SCALITY_FOR_SWIFT=False
+USE_SCALITY_FOR_GLANCE=False
 EOF
 
 if test -n "${JOB_CINDER_REPO:-}"; then
