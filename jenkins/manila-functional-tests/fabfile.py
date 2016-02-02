@@ -267,6 +267,112 @@ def setup_ring():
             run('build_ring')
 
 
+def setup_tunnel(name, local_ip, remote_ip, remote_net, gw_ip):
+    """
+    Setup one end of a tunnel to a remote network.
+
+    :param name: tunnel link name
+    :type name: string
+    :param local_ip: ip of local end of tunnel
+    :type local_ip: string
+    :param remote_ip: ip of remote end of tunnel
+    :type remote_ip: string
+    :param remote_net: remote network routed over tunnel
+    :type remote_net: string
+    :param gw_ip: local gw to remote network
+    :type gw_ip: string
+    """
+    sudo(
+        'ip tunnel add {name:s} mode gre remote {remote:s} local '
+        '{local:s} ttl 255'.format(
+            name=name,
+            remote=remote_ip,
+            local=local_ip
+        )
+    )
+    sudo('ip link set {name:s} up'.format(name=name))
+    sudo('ip addr add {gw_ip:s}/24 dev {name:s}'.format(
+            gw_ip=gw_ip,
+            name=name,
+        )
+    )
+    sudo('ip route add {remote_net:s} dev {name:s}'.format(
+            remote_net=remote_net,
+            name=name,
+        )
+    )
+
+
+@task
+def configure_network_path(local_ip, nfs_ip, cifs_ip):
+    """
+    Configure network path to the CIFS and NFS connector for tenant use.
+
+    The following environment variables must be set:
+     - TENANTS_NET
+     - TENANT_NFS_GW
+     - TENANT_SMB_GW
+     - RINGNET_NFS_EXPORT_IP
+     - RINGNET_SMB_EXPORT_IP
+     - RINGNET_NFS
+     - RINGNET_SMB
+
+    :param local_ip: ip of local end of tunnel
+    :type local_ip: string
+    :param nfs_ip: nfs connector ip
+    :type nfs_ip: string
+    :param cifs_ip: cifs connector ip
+    :type cifs_ip: string
+    """
+    nfs_net = os.environ['RINGNET_NFS']
+    nfs_gw = os.environ['TENANT_NFS_GW']
+    nfs_export_ip = os.environ['RINGNET_NFS_EXPORT_IP']
+    cifs_net = os.environ['RINGNET_SMB']
+    cifs_gw = os.environ['TENANT_SMB_GW']
+    cifs_export_ip = os.environ['RINGNET_SMB_EXPORT_IP']
+    tenants_net = os.environ['TENANTS_NET']
+
+    # Setup tunnel to NFS connector.
+    execute(
+        setup_tunnel,
+        'nfs',
+        local_ip,
+        nfs_ip,
+        nfs_net,
+        nfs_gw,
+        host=local_ip,
+    )
+    execute(
+        setup_tunnel,
+        'nfs',
+        nfs_ip,
+        local_ip,
+        tenants_net,
+        nfs_export_ip,
+        host=nfs_ip,
+    )
+
+    # Setup tunnel to CIFS connector.
+    execute(
+        setup_tunnel,
+        'cifs',
+        local_ip,
+        cifs_ip,
+        cifs_net,
+        cifs_gw,
+        host=local_ip,
+    )
+    execute(
+        setup_tunnel,
+        'cifs',
+        cifs_ip,
+        local_ip,
+        tenants_net,
+        cifs_export_ip,
+        host=cifs_ip,
+    )
+
+
 def heat_client_session():
     """
     Setup a keystone authenticated heat client session.
@@ -331,7 +437,6 @@ def deploy_infrastructure(public_key):
     print('Initiated Manila CI deployment: {0:s}'.format(stack_id))
     with io.open('/tmp/manilaci-deployment', 'wb') as f:
         json.dump({'stack_id': stack_id}, f, indent=2)
-
 
     # Wait for deployment to complete.
     retries = 60
