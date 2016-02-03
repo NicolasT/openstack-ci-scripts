@@ -110,7 +110,42 @@ def get_package_manager():
     raise Exception('Unable to detect package manager')
 
 
-@roles('nfs_connector', 'cifs_connector')
+def install_packages(*args):
+    """
+    Use the OS specific package manager to install packages.
+
+    :param args: variable argument list of package names to install
+    :type args: argument list of strings
+    """
+    cmd = "{pkgman:s} install -y {packages:s}".format(
+        pkgman=get_package_manager(),
+        packages=" ".join(args),
+    )
+    sudo(cmd)
+
+
+def relax_security():
+    """
+    Lower firewall and disable SELinux.
+
+    Firewall and SELinux is configured by default on CentOS.
+    """
+    sudo('iptables -P INPUT ACCEPT')
+    sudo('iptables -F INPUT')
+    sudo('setenforce 0')
+
+
+@roles('ring', 'nfs_connector', 'cifs_connector')
+@parallel
+def initial_host_config():
+    """
+    Initial OS tweaks required for proper setup.
+    """
+    if get_package_manager() == 'yum':
+        relax_security()
+
+
+@roles('ring', 'nfs_connector', 'cifs_connector')
 @parallel
 def add_package_repositories(credentials):
     release = 'stable_lorien'
@@ -190,7 +225,8 @@ def setup_sfused(name, supervisor_host):
     :param supervisor_host: supervisor host for sagentd registration
     :type supervisor_host: string
     """
-    sudo('apt-get -q -y install scality-sfused')
+    install_packages('scality-sfused')
+    sudo('/etc/init.d/scality-sfused start')
 
     upload_template(
         filename='assets/connector/etc/sagentd.yaml',
@@ -199,13 +235,17 @@ def setup_sfused(name, supervisor_host):
         use_sudo=True,
     )
 
-    sudo('sagentd-manageconf -c /etc/sagentd.yaml add sfused-{role:s} '
+    manageconf_path = run('which sagentd-manageconf')  # Required for CentOS
+
+    sudo('{manageconf:s} -c /etc/sagentd.yaml add sfused-{role:s} '
         'type=sfused port=7002 address={host:s} '
         'path=/run/scality/connectors/sfused'.format(
+            manageconf=manageconf_path,
             role=name,
             host=env.host,
         )
     )
+
     sudo('/etc/init.d/scality-sagentd restart')
 
     execute(register_sagentd, name, env.host, host=supervisor_host)
@@ -230,15 +270,21 @@ def setup_connector(role, volume_name, devid, supervisor_host):
     execute(create_volume, volume_name, role, devid, env.host,
             host=supervisor_host)
 
+    sfused = run('which sfused')  # Required for CentOS
+
     # There is a delay until the sfused config is pushed after volume creation.
     retries = 10
     for retry in range(retries):
         time.sleep(5)
-        cmd = sudo('sfused -X -c /etc/sfused.conf', warn_only=True)
+        cmd = sudo(
+            command='{0:s} -X -c /etc/sfused.conf'.format(sfused),
+            warn_only=True,
+        )
         if cmd.succeeded:
             break
     else:
         raise Exception("Catalog init failed for '{0:s}'".format(volume_name))
+
     sudo('/etc/init.d/scality-sfused restart')
 
 
@@ -256,7 +302,12 @@ def setup_nfs_connector(volume_name, devid, supervisor_host):
         of connector and volume
     :type supervisor_host: string
     """
-    sudo('apt-get -q -y install nfs-common')
+    if get_package_manager() == 'apt':
+        install_packages('nfs-common')
+    else:
+        install_packages('nfs-utils')
+        sudo('/etc/init.d/rpcbind start')
+
     setup_connector('nfs', volume_name, devid, supervisor_host)
     put('assets/connector/etc/exports.conf', '/etc/', use_sudo=True)
     sudo('/etc/init.d/scality-sfused restart')
@@ -278,7 +329,7 @@ def setup_cifs_connector(volume_name, devid, supervisor_host):
     """
     setup_connector('cifs', volume_name, devid, supervisor_host)
 
-    sudo('apt-get -q -y install scality-cifs')
+    install_packages('scality-cifs')
     put('assets/connector/etc/samba/smb.conf', '/etc/samba', use_sudo=True)
     sed(
         filename='/etc/default/sernet-samba',
@@ -301,7 +352,7 @@ def install_scality_manila_utils():
     """
     Install the scality-manila-utils python package.
     """
-    sudo('apt-get -q -y install git-core python-pip')
+    install_packages('git', 'python-pip')
     sudo('pip install git+https://github.com/scality/scality-manila-utils.git')
 
 
@@ -325,14 +376,20 @@ def setup_ring():
     export_vars = ('{0:s}={1:s}'.format(k, v) for k, v in install_env.items())
     export_cmd = 'export {0:s}'.format(' '.join(export_vars))
 
-    sudo('apt-get -q update')
-    sudo('apt-get -q -y install git-core')
+    install_packages('git')
     run('git clone https://github.com/scality/openstack-ci-scripts.git')
+
+    # Ensure that having a tty is not enforced by sudo (default in centos)
+    sed(
+        filename='/etc/sudoers',
+        before='Defaults.*requiretty',
+        after='',
+        use_sudo=True,
+    )
 
     # Hide aborts to not leak any repository passwords to console on failure.
     with cd('openstack-ci-scripts/jenkins'), prefix(export_cmd):
         with prefix('source ring-install.sh'), settings(hide('aborts')):
-            run('add_source')
             run('install_base_scality_node', pty=False)  # avoid setup screen
             run('install_supervisor')
             run('install_ringsh')
@@ -477,7 +534,7 @@ def heat_client_session():
     )
 
 
-def deploy_infrastructure(public_key):
+def deploy_infrastructure(public_key, image):
     """
     Deploy infrastructure backing ring and connectors.
 
@@ -488,6 +545,8 @@ def deploy_infrastructure(public_key):
 
     :param public_key: public key for infrastructure authentication
     :type public_key: string
+    :param image: glance image to boot from
+    :type image: string
     """
     heat_client = heat_client_session()
     template_file = 'manila-ci.yaml'
@@ -501,6 +560,7 @@ def deploy_infrastructure(public_key):
         parameters={
             'public_key': public_key,
             'deployment_name': deployment_name,
+            'image': image,
         },
     )
 
@@ -535,7 +595,7 @@ def deploy_infrastructure(public_key):
 
 
 @task
-def deploy(public_key):
+def deploy(public_key, image="Ubuntu 14.04 amd64"):
     """
     Deploy a single node ring with nfs and cifs connector.
 
@@ -550,8 +610,10 @@ def deploy(public_key):
 
     :param public_key: public key for infrastructure authentication
     :type public_key: string
+    :param image: glance image to boot from
+    :type image: string
     """
-    hosts = deploy_infrastructure(public_key)
+    hosts = deploy_infrastructure(public_key, image)
     env.roledefs = {
         'ring': [hosts['ring_ip']],
         'nfs_connector': [hosts['nfs_ip']],
@@ -576,7 +638,8 @@ def deploy(public_key):
         )
     )
 
-    execute(add_apt_repositories, os.environ['SCAL_PASS'])
+    execute(initial_host_config)
+    execute(add_package_repositories, os.environ['SCAL_PASS'])
     execute(setup_ring)
 
     execute(setup_nfs_connector, 'manila_nfs', 1, hosts['ring_ip'])

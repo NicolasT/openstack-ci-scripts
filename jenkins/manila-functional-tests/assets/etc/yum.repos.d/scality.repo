@@ -1,0 +1,4 @@
+[scality-base]
+name=Centos - Scality Base
+baseurl=http://%(credentials)s@packages.scality.com/%(release)s/centos/%(centos_version)d/x86_64/
+gpgcheck=0
