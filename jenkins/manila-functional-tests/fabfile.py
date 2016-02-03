@@ -3,28 +3,28 @@ import fabric
 import io
 import json
 import os
+import re
 import time
 
 import heatclient.client
 import keystoneclient.auth.identity.v2
 import keystoneclient.session
 
-from fabric.api import env, execute, task, put, roles, run, parallel, sudo
+from fabric.api import env, execute, get, task, put, roles, run, parallel, sudo
 from fabric.context_managers import cd, hide, prefix, settings, shell_env
-from fabric.contrib.files import append, contains, sed, upload_template
+from fabric.contrib.files import append, contains, exists, sed, upload_template
 from heatclient.common import template_utils
 
 
-@roles('nfs_connector', 'cifs_connector')
-@parallel
-def add_apt_repositories(credentials):
+def add_apt_repositories(credentials, release):
     """
     Add Scality APT repositories.
 
     :param credentials: credentials for packages.scality.com
     :type credentials: string
+    :param release: RING release
+    :type release: string
     """
-    release = 'stable_lorien'
     gpg_key = '4A23AD0E'
     repository = (
         'http://{auth:s}@packages.scality.com/{release:s}/ubuntu'.format(
@@ -47,6 +47,78 @@ def add_apt_repositories(credentials):
     # Sagentd depends on snmp-mibs-downloader, which is in multiverse.
     sudo('apt-add-repository --enable-source multiverse')
     sudo('apt-get -q update')
+
+
+def add_rpm_repositories(credentials, release):
+    """
+    Add Scality Centos repositories.
+
+    :param credentials: credentials for packages.scality.com
+    :type credentials: string
+    :param release: RING release
+    :type release: string
+    """
+    pattern = re.compile(r'^CentOS.*release (?P<major>\d+)[.]')
+    version_string = io.BytesIO()
+    get('/etc/redhat-release', local_path=version_string)
+
+    match = pattern.match(version_string.getvalue())
+    if match is None:
+        raise Exception('Unable to get CentOS version')
+
+    version = int(match.group('major'))
+    if version == 6:
+        epel = (
+            'http://mirror.cogentco.com/pub/linux/epel/6/i386/'
+            'epel-release-6-8.noarch.rpm'
+        )
+    elif version == 7:
+        epel = (
+            'http://mirror.cogentco.com/pub/linux/epel/7/'
+            'x86_64/e/epel-release-7-5.noarch.rpm'
+        )
+    else:
+        raise Exception('Unsupported CentOS version {0:d}'.format(version))
+
+    # Add scality repo
+    upload_template(
+        filename='assets/etc/yum.repos.d/scality.repo',
+        destination='/etc/yum.repos.d',
+        context={
+            'credentials': credentials,
+            'release': release,
+            'centos_version': version,
+        },
+        use_sudo=True,
+    )
+
+    # Add epel repo
+    sudo('rpm -Uvh {0:s}'.format(epel))
+
+
+def get_package_manager():
+    """
+    Inspect /etc to detect OS package manager.
+
+    :return: string
+    """
+    if exists('/etc/apt'):
+        return 'apt'
+    elif exists('/etc/yum'):
+        return 'yum'
+
+    raise Exception('Unable to detect package manager')
+
+
+@roles('nfs_connector', 'cifs_connector')
+@parallel
+def add_package_repositories(credentials):
+    release = 'stable_lorien'
+
+    if get_package_manager() == 'apt':
+        add_apt_repositories(credentials, release)
+    else:
+        add_rpm_repositories(credentials, release)
 
 
 def register_sagentd(instance_name, ip, port=7084):
