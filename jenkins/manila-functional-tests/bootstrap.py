@@ -1,11 +1,12 @@
 
 import io
+import json
 import os
 import re
 import time
 
 from fabric.api import env, execute, get, put, roles, run, parallel, sudo
-from fabric.context_managers import cd, hide, prefix, settings
+from fabric.context_managers import cd, hide, prefix, settings, shell_env
 from fabric.contrib.files import exists, sed, upload_template
 
 CREDENTIALS = {
@@ -422,10 +423,123 @@ def setup_supervisor(ring='MyRing'):
     install_packages('scality-supervisor')
 
     if get_package_manager() == 'yum':
-        sudo('/etc/init.d/httpd start')
-        sudo('/etc/init.d/scality-supervisor start')
+        start_service('httpd')
+        start_service('scality-supervisor')
+        if has_systemd():
+            start_service('scality-supv2')
 
     setup_ringsh(ring, env.host)
+
+
+def fake_disk(prefix='/scality/disk', quantity=1, size=40):
+    """
+    Setup a loop device, backed by a sparse file to serve as disk.
+
+    :param prefix: mount prefix of the disks
+    :type prefix: string
+    :param quantity: number of disks to setup
+    :param quantity: int
+    :param size: sparse file size (GB)
+    :type size: int
+    """
+    loop_path = '/var/fakedisk'
+    sudo('mkdir -p {0:s}'.format(loop_path))
+    for i in range(1, quantity + 1):
+        mount_point = '{0:s}{1:d}'.format(prefix, i)
+        backing_file = '{0:s}/{1:d}'.format(loop_path, i)
+        sudo('mkdir -p {0:s}'.format(mount_point))
+        sudo('truncate -s {0:d}G {1:s}'.format(size, backing_file))
+        dev = sudo('losetup -f')
+        sudo('losetup {0:s} {1:s}'.format(dev, backing_file))
+        sudo('mkfs.ext4 -m 0 {0:s}'.format(dev))
+        sudo('mount {0:s} {1:s}'.format(dev, mount_point))
+        sudo('touch {0:s}/.ok_for_biziod'.format(mount_point))
+
+
+def setup_node(supervisor_host, prefix='/scality/disk', metadisks=None,
+               ring='MyRing'):
+    """
+    Bootstrap a Scality RING with a single store node.
+
+    :param supervisor_host: hostname or ip of the supervisor for registration
+        of the ring
+    :type supervisor_host: string
+    :param prefix: mount prefix of the disks (optional)
+    :type prefix: string
+    :param metadisks: mount prefix for bizobj.bin metadata (optional)
+    :type metadisks: string
+    :param ring: name of ring to create
+    :type ring: string
+    """
+    if get_package_manager() == 'apt':
+        install_packages('snmp')
+    else:
+        install_packages('net-snmp', 'net-snmp-utils')
+
+    put_installation_credentials()
+    upload_template(
+        filename=abspath('assets/node/preseed'),
+        destination='/tmp',
+        context={
+            'node_host': env.host,
+            'supervisor_host': supervisor_host,
+            'prefix': prefix,
+            'metadisks': json.dumps(metadisks),
+        },
+    )
+
+    # Install node.
+    with shell_env(DEBIAN_FRONTEND='noninteractive'):
+        install_packages('scality-node', 'scality-sagentd',
+                         'scality-nasdk-tools')
+
+    nodeconf = run('which scality-node-config')  # Required for CentOS
+    sudo('{0:s} --resetconfig --preseed-file /tmp/preseed'.format(nodeconf))
+
+    # Configure sagentd.
+    sed(
+        filename='/usr/local/scality-sagentd/snmpd_proxy_file.py',
+        before='/tmp/oidlist.txt',
+        after='/var/lib/scality-sagentd/oidlist.txt',
+        use_sudo=True,
+    )
+    sudo('/etc/init.d/scality-sagentd restart')
+    sudo('/etc/init.d/snmpd restart')
+
+    # Create ring.
+    retries = 10
+    setup_ringsh(ring, supervisor_host, env.host)
+    run('ringsh supervisor ringCreate {0:s}'.format(ring))
+    run('ringsh supervisor serverAdd server1 {0:s} 7084'.format(env.host))
+    for retry in range(retries):
+        time.sleep(5)
+        cmd = run(
+            command='ringsh supervisor nodeSetRing '
+                    '{0:s} {1:s} 8084'.format(ring, env.host),
+            warn_only=True,
+        )
+        if cmd.succeeded:
+            break
+    else:
+        raise Exception("Unable to assign node to ring {0:s}".format(ring))
+    for retry in range(retries):
+        time.sleep(5)
+        cmd = run(
+            command='ringsh supervisor nodeJoin {0:s} 8084'.format(env.host),
+            warn_only=True,
+        )
+        if cmd.succeeded:
+            # Ensure node status
+            cmd = run(
+                command='ringsh supervisor nodeStatus {ip:s} 8084'.format(
+                    ip=env.host
+                ),
+                warn_only=True,
+            )
+            if cmd.strip().startswith('RUN'):
+                break
+    else:
+        raise Exception("Unable join node to ring {0:s}".format(ring))
 
 
 @roles('nfs_connector', 'cifs_connector')
