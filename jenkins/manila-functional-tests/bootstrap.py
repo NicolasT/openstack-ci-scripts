@@ -9,6 +9,14 @@ from fabric.context_managers import cd, hide, prefix, settings
 from fabric.contrib.files import exists, sed, upload_template
 
 
+def abspath(path):
+    """
+    Get an absolute path relative to this script.
+    """
+    local_path, _ = os.path.split(__file__)
+    return os.path.abspath(os.path.join(local_path, path))
+
+
 def add_apt_repositories(credentials, release):
     """
     Add Scality APT repositories.
@@ -26,7 +34,7 @@ def add_apt_repositories(credentials, release):
     )
 
     # Add GPG key.
-    put('../scality5.gpg', '/tmp')
+    put(abspath('../scality5.gpg'), '/tmp')
     sudo('apt-key add /tmp/scality5.gpg')
 
     # Hide command execution, as well as any errors to not leak credentials.
@@ -80,7 +88,7 @@ def add_rpm_repositories(credentials, release, add_epel=True):
 
     # Add scality repository.
     upload_template(
-        filename='assets/etc/yum.repos.d/scality.repo',
+        filename=abspath('assets/etc/yum.repos.d/scality.repo'),
         destination='/etc/yum.repos.d',
         context={
             'credentials': credentials,
@@ -236,7 +244,7 @@ def setup_sfused(name, supervisor_host):
     sudo('/etc/init.d/scality-sfused start')
 
     upload_template(
-        filename='assets/connector/etc/sagentd.yaml',
+        filename=abspath('assets/connector/etc/sagentd.yaml'),
         destination='/etc',
         context={'supervisor_host': supervisor_host},
         use_sudo=True,
@@ -338,7 +346,8 @@ def setup_cifs_connector(volume_name, devid, supervisor_host):
     setup_connector('cifs', volume_name, devid, supervisor_host)
 
     install_packages('scality-cifs')
-    put('assets/connector/etc/samba/smb.conf', '/etc/samba', use_sudo=True)
+    conf_path = abspath('assets/connector/etc/samba/smb.conf')
+    put(conf_path, '/etc/samba', use_sudo=True)
     sed(
         filename='/etc/default/sernet-samba',
         before='SAMBA_START_MODE="none"',
