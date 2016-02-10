@@ -8,6 +8,13 @@ from fabric.api import env, execute, get, put, roles, run, parallel, sudo
 from fabric.context_managers import cd, hide, prefix, settings
 from fabric.contrib.files import exists, sed, upload_template
 
+CREDENTIALS = {
+    'supuser': 'supadmin',
+    'suppass': 'suppass',
+    'mgmtuser': 'superUser',
+    'mgmtpass': 'adminPass',
+}
+
 
 def abspath(path):
     """
@@ -361,6 +368,64 @@ def setup_cifs_connector(volume_name, devid, supervisor_host):
     # The sernet-samba-smbd init script is flaky: if the parent exits
     # to quickly, the smbd process does not have time to daemonize.
     sudo('/etc/init.d/sernet-samba-smbd start && sleep 5')
+
+
+def put_installation_credentials():
+    """
+    Put the credentials required for installation of supervisor and node.
+    """
+    upload_template(
+        filename=abspath('assets/scality-installer-credentials'),
+        destination='/tmp',
+        context=CREDENTIALS,
+    )
+
+
+def setup_ringsh(ring, supervisor_host, node_host=None):
+    """
+    Install and configure ringsh.
+
+    :param ring: ring name (dso name)
+    :type ring: string
+    :param supervisor_host: hostname or ip of the supervisor
+    :type supervisor_host: string
+    """
+    if node_host is not None:
+        node_section = {
+            'address': node_host,
+            'chordPort': 4244,
+            'adminPort': '6444',
+            'dsoName': ring,
+        }
+    else:
+        node_section = 'None'
+
+    install_packages('scality-ringsh')
+    upload_template(
+        filename=abspath('assets/config.py'),
+        destination='/usr/local/scality-ringsh/ringsh',
+        context={
+            'mgmtuser': CREDENTIALS['mgmtuser'],
+            'mgmtpass': CREDENTIALS['mgmtpass'],
+            'supervisor_host': supervisor_host,
+            'node': node_section,
+        },
+        use_sudo=True,
+    )
+
+
+def setup_supervisor(ring='MyRing'):
+    """
+    Install the supervisor.
+    """
+    put_installation_credentials()
+    install_packages('scality-supervisor')
+
+    if get_package_manager() == 'yum':
+        sudo('/etc/init.d/httpd start')
+        sudo('/etc/init.d/scality-supervisor start')
+
+    setup_ringsh(ring, env.host)
 
 
 @roles('nfs_connector', 'cifs_connector')
