@@ -206,7 +206,7 @@ def create_volume(name, role, devid, connector_ip, connector_port=7002,
     :param name: volume name
     :type name: string
     :param role: the role to associate with the connector exposing the volume
-        (nfs or cifs)
+        (nfs, cifs or localfs)
     :type role: string
     :param devid: device id for the volume
     :type devid: int
