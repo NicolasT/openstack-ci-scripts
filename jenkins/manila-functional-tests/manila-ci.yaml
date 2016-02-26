@@ -1,0 +1,56 @@
+heat_template_version: 2014-10-16
+description: Manila CI Infrastructure
+
+parameters:
+    deployment_name:
+        type: string
+        description: Name of infrastructure deployment, to explicitly name the resources part of the deployment
+
+    public_key:
+        type: string
+        description: Public SSH key for instance access
+
+resources:
+    ssh_key:
+        type: OS::Nova::KeyPair
+        properties:
+            public_key: { get_param: public_key }
+            name: { get_param: deployment_name }
+
+    ring:  # Single-node ring with supervisor
+        type: OS::Nova::Server
+        properties:
+            name: { str_replace: { template: deployment-RING, params: { deployment: { get_param: deployment_name }}}}
+            key_name: { get_resource: ssh_key }
+            image: Ubuntu 14.04 amd64
+            flavor: m1.medium
+            user_data_format: RAW
+
+    nfs-connector:
+        type: OS::Nova::Server
+        properties:
+            name: { str_replace: { template: deployment-NFS, params: { deployment: { get_param: deployment_name }}}}
+            key_name: { get_resource: ssh_key }
+            image: Ubuntu 14.04 amd64
+            flavor: m1.small
+            user_data_format: RAW
+
+    cifs-connector:
+        type: OS::Nova::Server
+        properties:
+            name: { str_replace: { template: deployment-CIFS, params: { deployment: { get_param: deployment_name }}}}
+            key_name: { get_resource: ssh_key }
+            image: Ubuntu 14.04 amd64
+            flavor: m1.small
+            user_data_format: RAW
+
+outputs:
+    ring_ip:
+        description: IP of single-node ring
+        value: { get_attr: [ring, first_address] }
+    nfs_ip:
+        description: IP of NFS connector
+        value: { get_attr: [nfs-connector, first_address] }
+    cifs_ip:
+        description: IP of CIFS connector
+        value: { get_attr: [cifs-connector, first_address] }
