@@ -20,11 +20,11 @@ cat > devstack/local.conf <<-EOF
 	SCREEN_LOGDIR="\${DEST}/logs"
 	USE_SCALITY_FOR_GLANCE=False
 
-    # The Manila devstack plugin require these, or will default to ~/.ssh/id_rsa
-    # Seems there is no way to disable the installation of the generic driver
-    # which relies on these.
-    MANILA_PATH_TO_PUBLIC_KEY="${MANAGEMENT_KEY_PATH}.pub"
-    MANILA_PATH_TO_PRIVATE_KEY=${MANAGEMENT_KEY_PATH}
+	# The Manila devstack plugin require these, or will default to ~/.ssh/id_rsa
+	# Seems there is no way to disable the installation of the generic driver
+	# which relies on these.
+	MANILA_PATH_TO_PUBLIC_KEY="${MANAGEMENT_KEY_PATH}.pub"
+	MANILA_PATH_TO_PRIVATE_KEY=${MANAGEMENT_KEY_PATH}
 
 EOF
 
