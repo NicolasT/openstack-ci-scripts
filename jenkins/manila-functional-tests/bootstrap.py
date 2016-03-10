@@ -5,9 +5,9 @@ import os
 import re
 import time
 
-from fabric.api import env, execute, get, put, roles, run, parallel, sudo
+from fabric.api import env, execute, get, put, roles, run, sudo
 from fabric.context_managers import cd, hide, prefix, settings, shell_env
-from fabric.contrib.files import exists, sed, upload_template
+from fabric.contrib.files import sed, upload_template
 
 CREDENTIALS = {
     'supuser': 'supadmin',
@@ -148,8 +148,6 @@ def relax_security():
     sudo('setenforce 0', warn_only=True)
 
 
-@roles('ring', 'nfs_connector', 'cifs_connector')
-@parallel
 def initial_host_config():
     """
     Initial OS tweaks required for proper setup.
@@ -166,8 +164,6 @@ def initial_host_config():
         )
 
 
-@roles('ring', 'nfs_connector', 'cifs_connector')
-@parallel
 def add_package_repositories(credentials, release='stable_lorien'):
     """
     Add package repositories.
@@ -312,7 +308,6 @@ def setup_connector(role, volume_name, devid, supervisor_host):
     sudo('/etc/init.d/scality-sfused restart')
 
 
-@roles('nfs_connector')
 def setup_nfs_connector(volume_name, devid, supervisor_host):
     """
     Deploy an sfused nfs connector and SOFS accompanying volume.
@@ -337,7 +332,6 @@ def setup_nfs_connector(volume_name, devid, supervisor_host):
     sudo('/etc/init.d/scality-sfused restart')
 
 
-@roles('cifs_connector')
 def setup_cifs_connector(volume_name, devid, supervisor_host):
     """
     Deploy an sfused cifs connector and SOFS accompanying volume.
@@ -542,8 +536,6 @@ def setup_node(supervisor_host, prefix='/scality/disk', metadisks=None,
         raise Exception("Unable join node to ring {0:s}".format(ring))
 
 
-@roles('nfs_connector', 'cifs_connector')
-@parallel
 def install_scality_manila_utils():
     """
     Install the scality-manila-utils python package.

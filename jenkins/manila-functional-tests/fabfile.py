@@ -57,6 +57,61 @@ def deploy_infrastructure(public_key, image):
     return hosts
 
 
+@roles('ring', 'nfs_connector', 'cifs_connector')
+@parallel
+def prepare_host(repo_credentials):
+    """
+    Carry out initial host perparation tasks.
+
+    - Turn off SELinux
+    - Lower firewall
+    - Add package repositories
+
+    :param credentials: credentials for packages.scality.com
+    :type credentials: string
+    """
+    bootstrap.initial_host_config()
+    bootstrap.add_package_repositories(repo_credentials)
+
+
+@roles('ring')
+def setup_ring():
+    """
+    Install a ring together with supervisor on the same host.
+    """
+    # Bootstrap supervisor
+    supervisor_host = env.host
+    bootstrap.setup_supervisor()
+
+    # Bootstrap ring
+    bootstrap.fake_disk()
+    bootstrap.setup_node(supervisor_host)
+
+
+@roles('nfs_connector')
+def setup_nfs_connector(supervisor_host):
+    """
+    Setup and configure the NFS connector with scality-manila-utils.
+
+    :param supervisor_host: host where the supervisor is running
+    :type supervisor_host: string
+    """
+    bootstrap.setup_nfs_connector('manila_nfs', 1, supervisor_host)
+    bootstrap.install_scality_manila_utils()
+
+
+@roles('cifs_connector')
+def setup_cifs_connector(supervisor_host):
+    """
+    Setup and configure the CIFS connector with scality-manila-utils.
+
+    :param supervisor_host: host where the supervisor is running
+    :type supervisor_host: string
+    """
+    bootstrap.setup_cifs_connector('manila_cifs', 2, supervisor_host)
+    bootstrap.install_scality_manila_utils()
+
+
 @task
 def deploy(public_key, image="Ubuntu 14.04 amd64"):
     """
@@ -101,14 +156,10 @@ def deploy(public_key, image="Ubuntu 14.04 amd64"):
         )
     )
 
-    execute(bootstrap.initial_host_config)
-    execute(bootstrap.add_package_repositories, os.environ['SCAL_PASS'])
-    execute(bootstrap.setup_ring)
-
-    execute(bootstrap.setup_nfs_connector, 'manila_nfs', 1, hosts['ring_ip'])
-    execute(bootstrap.setup_cifs_connector, 'manila_cifs', 2, hosts['ring_ip'])
-
-    execute(bootstrap.install_scality_manila_utils)
+    execute(prepare_host, os.environ['SCAL_PASS'])
+    execute(setup_ring)
+    execute(setup_nfs_connector, hosts['ring_ip'])
+    execute(setup_cifs_connector, hosts['ring_ip'])
 
 
 @task
