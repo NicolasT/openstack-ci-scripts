@@ -5,8 +5,8 @@ import os
 import re
 import time
 
-from fabric.api import env, execute, get, put, roles, run, sudo
-from fabric.context_managers import cd, hide, prefix, settings, shell_env
+from fabric.api import env, execute, get, put, run, sudo
+from fabric.context_managers import hide, settings, shell_env
 from fabric.contrib.files import sed, upload_template
 
 CREDENTIALS = {
@@ -542,38 +542,6 @@ def install_scality_manila_utils():
     """
     install_packages('git', 'python-pip')
     sudo('pip install git+https://github.com/scality/scality-manila-utils.git')
-
-
-@roles('ring')
-def setup_ring():
-    """
-    Bootstrap Scality RING (environment variable `SCAL_PASS` must be exported).
-
-    The environment variable `SCAL_PASS` is expected to hold username:password
-    for fetching scality packages.
-    """
-    install_env = {
-        'SUP_ADMIN_LOGIN': 'supadmin',
-        'SUP_ADMIN_PASS': 'supadmin',
-        'INTERNAL_MGMT_LOGIN': 'admin',
-        'INTERNAL_MGMT_PASS': 'admin',
-        'HOST_IP': env.host,
-        'SCAL_PASS': os.environ['SCAL_PASS'],
-        'AllowEncodedSlashes': 'NoDecode',
-    }
-    export_vars = ('{0:s}={1:s}'.format(k, v) for k, v in install_env.items())
-    export_cmd = 'export {0:s}'.format(' '.join(export_vars))
-
-    install_packages('git')
-    run('git clone https://github.com/scality/openstack-ci-scripts.git')
-
-    # Hide aborts to not leak any repository passwords to console on failure.
-    with cd('openstack-ci-scripts/jenkins'), prefix(export_cmd):
-        with prefix('source ring-install.sh'), settings(hide('aborts')):
-            run('install_base_scality_node', pty=False)  # avoid setup screen
-            run('install_supervisor')
-            run('install_ringsh')
-            run('build_ring')
 
 
 def setup_tunnel(name, local_ip, remote_ip, remote_net, gw_ip):
