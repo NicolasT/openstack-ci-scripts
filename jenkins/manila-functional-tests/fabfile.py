@@ -2,48 +2,11 @@ import datetime
 import io
 import json
 import os
-import time
 
 import bootstrap
+import heat
 
-import heatclient.client
-import keystoneclient.auth.identity.v2
-import keystoneclient.session
-
-from fabric.api import env, execute, task
-from heatclient.common import template_utils
-
-
-def heat_client_session():
-    """
-    Setup a keystone authenticated heat client session.
-
-    The following environment variables must be set:
-     - OS_AUTH_URL
-     - OS_TENANT_NAME
-     - OS_USERNAME
-     - OS_PASSWORD
-
-    :return: :py:class:`heatclient.client.Client`
-    """
-    auth = keystoneclient.auth.identity.v2.Password(
-        auth_url=os.environ['OS_AUTH_URL'],
-        tenant_name=os.environ['OS_TENANT_NAME'],
-        username=os.environ['OS_USERNAME'],
-        password=os.environ['OS_PASSWORD'],
-    )
-
-    keystone_session = keystoneclient.session.Session(auth=auth)
-    heat_endpoint = keystone_session.get_endpoint(
-        service_type='orchestration',
-        interface='publicURL',
-    )
-
-    return heatclient.client.Client(
-        version=1,
-        endpoint=heat_endpoint,
-        session=keystone_session,
-    )
+from fabric.api import env, execute, parallel, roles, task
 
 
 def deploy_infrastructure(public_key, image):
@@ -60,40 +23,28 @@ def deploy_infrastructure(public_key, image):
     :param image: glance image to boot from
     :type image: string
     """
-    heat_client = heat_client_session()
+    heat_client = heat.client_session(
+        auth_url=os.environ['OS_AUTH_URL'],
+        tenant=os.environ['OS_TENANT_NAME'],
+        username=os.environ['OS_USERNAME'],
+        password=os.environ['OS_PASSWORD'],
+    )
     template_file = 'manila-ci.yaml'
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
-    deployment_name='ManilaCI_{0:s}'.format(timestamp)
-    tpl_files, template = template_utils.get_template_contents(template_file)
-    api_response = heat_client.stacks.create(
-        stack_name=deployment_name,
-        template=template,
-        files=tpl_files,
-        parameters={
-            'public_key': public_key,
-            'deployment_name': deployment_name,
-            'image': image,
-        },
+    deployment_name = 'ManilaCI_{0:s}'.format(timestamp)
+    stack = heat.deploy(
+        name=deployment_name,
+        template_file=template_file,
+        heat_client=heat_client,
+        public_key=public_key,
+        deployment_name=deployment_name,
+        image=image,
     )
 
     # Record deployment stack id.
-    stack_id = api_response['stack']['id']
-    print('Initiated Manila CI deployment: {0:s}'.format(stack_id))
+    print('Initiated Manila CI deployment: {0:s}'.format(stack.id))
     with io.open('/tmp/manilaci-deployment', 'wb') as f:
-        json.dump({'stack_id': stack_id}, f, indent=2)
-
-    # Wait for deployment to complete.
-    retries = 60
-    for retry in range(retries):
-        time.sleep(5)
-        stack = heat_client.stacks.get(stack_id)
-        if stack.status == 'COMPLETE':
-            break
-    else:
-        raise Exception(
-            "Deployment of infrastructure failed. "
-            "Stack id: '{0:s}' / {1:s}".format(stack_id, stack.status)
-        )
+        json.dump({'stack_id': stack.id}, f, indent=2)
 
     hosts = {}
     for out in stack.outputs:
@@ -251,4 +202,10 @@ def destroy(stack_id=None):
             deployment = json.load(f)
             stack_id = deployment['stack_id']
 
-    heat_client_session().stacks.delete(stack_id)
+    heat_client = heat.client_session(
+        auth_url=os.environ['OS_AUTH_URL'],
+        tenant=os.environ['OS_TENANT_NAME'],
+        username=os.environ['OS_USERNAME'],
+        password=os.environ['OS_PASSWORD'],
+    )
+    heat_client.stacks.delete(stack_id)
