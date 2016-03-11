@@ -17,6 +17,25 @@ CREDENTIALS = {
 }
 
 
+def memoize(f):
+    """
+    Decorator providing results caching.
+
+    This is a rather naive approach which relies on the string representation
+    of the arguments.  If a type of an argument does not implement `repr`,
+    caching of calls will be guaranteed.
+    """
+    f.memoized_result = {}
+
+    def wrapper(*args, **kwargs):
+        cache_key = repr(args) + repr(kwargs)
+        if cache_key not in f.memoized_result:
+            f.memoized_result[cache_key] = f(*args, **kwargs)
+        return f.memoized_result[cache_key]
+
+    return wrapper
+
+
 def abspath(path):
     """
     Get an absolute path relative to this script.
@@ -107,6 +126,7 @@ def add_rpm_repositories(credentials, release, add_epel=True):
     )
 
 
+@memoize
 def get_package_manager():
     """
     Detect OS package manager.
