@@ -155,6 +155,38 @@ def install_packages(*args):
     sudo(cmd)
 
 
+@memoize
+def has_systemd():
+    systemd = run('which systemctl', warn_only=True)
+    return systemd.succeeded
+
+
+def start_service(name):
+    """
+    Start a system service.
+
+    :param name: name of service to start
+    :type name: string
+    """
+    if has_systemd():
+        sudo('systemctl start {0:s}'.format(name))
+    else:
+        sudo('/etc/init.d/{0:s} start'.format(name))
+
+
+def restart_service(name):
+    """
+    Restart a system service.
+
+    :param name: name of service to restart
+    :type name: string
+    """
+    if has_systemd():
+        sudo('systemctl restart {0:s}'.format(name))
+    else:
+        sudo('/etc/init.d/{0:s} restart'.format(name))
+
+
 def relax_security():
     """
     Lower firewall and disable SELinux.
@@ -265,7 +297,7 @@ def setup_sfused(name, supervisor_host):
     :type supervisor_host: string
     """
     install_packages('scality-sfused')
-    sudo('/etc/init.d/scality-sfused start')
+    start_service('scality-sfused')
 
     upload_template(
         filename=abspath('assets/connector/etc/sagentd.yaml'),
@@ -286,8 +318,7 @@ def setup_sfused(name, supervisor_host):
         )
     )
 
-    sudo('/etc/init.d/scality-sagentd restart')
-
+    restart_service('scality-sagentd')
     execute(register_sagentd, name, env.host, host=supervisor_host)
 
 
@@ -325,7 +356,7 @@ def setup_connector(role, volume_name, devid, supervisor_host):
     else:
         raise Exception("Catalog init failed for '{0:s}'".format(volume_name))
 
-    sudo('/etc/init.d/scality-sfused restart')
+    restart_service('scality-sfused')
 
 
 def setup_nfs_connector(volume_name, devid, supervisor_host):
@@ -345,11 +376,11 @@ def setup_nfs_connector(volume_name, devid, supervisor_host):
         install_packages('nfs-common')
     else:
         install_packages('nfs-utils')
-        sudo('/etc/init.d/rpcbind start')
+        start_service('rpcbind')
 
     setup_connector('nfs', volume_name, devid, supervisor_host)
     put('assets/connector/etc/exports.conf', '/etc/', use_sudo=True)
-    sudo('/etc/init.d/scality-sfused restart')
+    restart_service('scality-sfused')
 
 
 def setup_cifs_connector(volume_name, devid, supervisor_host):
@@ -517,8 +548,8 @@ def setup_node(supervisor_host, prefix='/scality/disk', metadisks=None,
         after='/var/lib/scality-sagentd/oidlist.txt',
         use_sudo=True,
     )
-    sudo('/etc/init.d/scality-sagentd restart')
-    sudo('/etc/init.d/snmpd restart')
+    restart_service('scality-sagentd')
+    restart_service('snmpd')
 
     # Create ring.
     retries = 10
