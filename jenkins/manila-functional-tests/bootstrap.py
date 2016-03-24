@@ -54,7 +54,9 @@ def add_apt_repositories(credentials, release):
     :type release: string
     """
     repository = (
-        'http://{auth:s}@packages.scality.com/{release:s}/ubuntu'.format(
+        "'deb [arch=amd64] "
+        "http://{auth:s}@packages.scality.com/{release:s}/ubuntu "
+        "trusty main'".format(
             auth=credentials,
             release=release,
         )
