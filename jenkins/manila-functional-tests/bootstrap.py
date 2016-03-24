@@ -7,7 +7,7 @@ import time
 
 from fabric.api import env, execute, get, put, run, sudo
 from fabric.context_managers import hide, settings, shell_env
-from fabric.contrib.files import sed, upload_template
+from fabric.contrib.files import append, sed, upload_template
 
 CREDENTIALS = {
     'supuser': 'supadmin',
@@ -216,6 +216,12 @@ def initial_host_config():
             after='',
             use_sudo=True,
         )
+
+    # Sudo is noisy if it can't resolve local hostname.
+    hostname = run('hostname')
+    ping = run('ping {0:s}'.format(hostname), warn_only=True)
+    if not ping.succeeded:
+        append('/etc/hosts', '127.0.1.1 {0:s}'.format(hostname), use_sudo=True)
 
 
 def add_package_repositories(credentials, release='stable_lorien'):
