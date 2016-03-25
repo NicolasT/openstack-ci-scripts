@@ -563,7 +563,7 @@ def setup_node(supervisor_host, prefix='/scality/disk', metadisks=None,
     retries = 10
     setup_ringsh(ring, supervisor_host, env.host)
     run('ringsh supervisor ringCreate {0:s}'.format(ring))
-    run('ringsh supervisor serverAdd server1 {0:s} 7084'.format(env.host))
+    run('ringsh supervisor serverAdd {0:s} {1:s} 7084'.format(ring, env.host))
     for retry in range(retries):
         time.sleep(5)
         cmd = run(
