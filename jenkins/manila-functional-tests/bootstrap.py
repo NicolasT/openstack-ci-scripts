@@ -278,8 +278,10 @@ def register_sagentd(instance_name, ip, port=7084):
     :param port: port of the sagent node for registration
     :type port: int
     """
-    run('ringsh supervisor serverAdd {name:s}-sa '
-        '{ip:s} {port:d}'.format(name=instance_name, ip=ip, port=port))
+    server_listing = run('ringsh supervisor serverList')
+    if ip not in server_listing:
+        run('ringsh supervisor serverAdd {name:s}-sa '
+            '{ip:s} {port:d}'.format(name=instance_name, ip=ip, port=port))
 
 
 def create_volume(name, role, devid, connector_ip, connector_port=7002,
