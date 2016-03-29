@@ -285,7 +285,7 @@ def register_sagentd(instance_name, ip, port=7084):
 
 
 def create_volume(name, role, devid, connector_ip, connector_port=7002,
-                  ring="MyRing"):
+                  data_ring="MyRing", md_ring='MyRing'):
     """
     Create a volume and associate a connector.
 
@@ -300,11 +300,14 @@ def create_volume(name, role, devid, connector_ip, connector_port=7002,
     :type connector_ip: string
     :param connector_port: port of the connector exposing the volume
     :type connector_port: int
-    :param ring: name of the ring backing the volume (data and metadata)
-    :type ring: string
+    :param data_ring: name of the ring backing the volume data
+    :type data_ring: string
+    :param md_ring: name of the ring backing the volume metadata
+    :type md_ring: string
     """
-    run('ringsh supervisor addVolume {name:s} sofs {devid:d} '
-        '{ring:s} 1 {ring:s} 1'.format(name=name, devid=devid, ring=ring))
+    run('ringsh supervisor addVolume {name:s} sofs {devid:d} {data_ring:s} 1 '
+        '{md_ring:s} 1'.format(name=name, devid=devid, data_ring=data_ring,
+                               md_ring=md_ring))
 
     retries = 10
     for retry in range(retries):
@@ -361,7 +364,8 @@ def setup_sfused(name, supervisor_host):
     execute(register_sagentd, name, env.host, host=supervisor_host)
 
 
-def setup_connector(role, volume_name, devid, supervisor_host):
+def setup_connector(role, volume_name, devid, supervisor_host,
+                    data_ring='MyRing', md_ring='MyRing', name=None):
     """
     Deploy an sfused connector, and an associated volume.
 
@@ -374,11 +378,18 @@ def setup_connector(role, volume_name, devid, supervisor_host):
     :param supervisor_host: hostname or ip of the supervisor for registration
         of connector and volume
     :type supervisor_host: string
+    :param data_ring: name of the ring backing the volume data
+    :type data_ring: string
+    :param md_ring: name of the ring backing the volume metadata
+    :type md_ring: string
+    :param name: name of connector, defaults to role, eg nfs
+    :type name: string
     """
-    setup_sfused(role, supervisor_host)
+    connector_name = name or role
+    setup_sfused(connector_name, supervisor_host)
 
     execute(create_volume, volume_name, role, devid, env.host,
-            host=supervisor_host)
+            data_ring=data_ring, md_ring=md_ring, host=supervisor_host)
 
     sfused = run('which sfused')  # Required for CentOS
 
