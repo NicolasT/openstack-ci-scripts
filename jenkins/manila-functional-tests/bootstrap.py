@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+import yaml
 
 from fabric.api import env, execute, get, put, run, sudo
 from fabric.context_managers import hide, settings, shell_env
@@ -34,6 +35,33 @@ def memoize(f):
         return f.memoized_result[cache_key]
 
     return wrapper
+
+
+def update_yaml(path, predicate, update, use_sudo=False):
+    """
+    Load configuration from path and apply update.
+
+    A yaml document at `path` is deserialized, and updated with the given
+    `update` function if `predicate` holds.
+
+    :param path: path to yaml document
+    :type path: string
+    :param predicate: function taking a python representation of the yaml
+        document, and returns either `True` or `False`
+    :type predicate: function
+    :param update: function taking a python representation of the yaml
+        document, and does in-place update
+    """
+    doc_in = io.BytesIO()
+    get(path, local_path=doc_in, use_sudo=use_sudo)
+    doc_in.seek(0)
+    doc = yaml.safe_load(doc_in)
+    if predicate(doc):
+        update(doc)
+        doc_out = io.BytesIO()
+        yaml.safe_dump(doc, stream=doc_out)
+        doc_out.seek(0)
+        put(doc_out, path, use_sudo=use_sudo)
 
 
 def abspath(path):
@@ -307,10 +335,11 @@ def setup_sfused(name, supervisor_host):
     install_packages('scality-sfused')
     start_service('scality-sfused')
 
-    upload_template(
-        filename=abspath('assets/connector/etc/sagentd.yaml'),
-        destination='/etc',
-        context={'supervisor_host': supervisor_host},
+    # Ensure supervisor is whitelisted
+    update_yaml(
+        path='/etc/sagentd.yaml',
+        predicate=lambda conf: supervisor_host not in conf['ip_whitelist'],
+        update=lambda conf: conf['ip_whitelist'].append(supervisor_host),
         use_sudo=True,
     )
 
