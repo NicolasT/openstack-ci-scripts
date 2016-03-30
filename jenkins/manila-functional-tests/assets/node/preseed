@@ -1,0 +1,13 @@
+{
+    "chord-ip": "%(node_host)s",
+    "disks": "1",
+    "disk-mapping": null,
+    "ip": "%(node_host)s",
+    "metadisks": %(metadisks)s,
+    "name": "nodes-n",
+    "nodes": "1",
+    "prefix": "%(prefix)s",
+    "ssl": 0,
+    "supervisor-ip": "%(supervisor_host)s",
+    "tier2": 0
+}

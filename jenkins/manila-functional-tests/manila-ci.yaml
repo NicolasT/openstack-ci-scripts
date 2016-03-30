@@ -10,6 +10,10 @@ parameters:
         type: string
         description: Public SSH key for instance access
 
+    image:
+        type: string
+        description: Glance image to boot from
+
 resources:
     ssh_key:
         type: OS::Nova::KeyPair
@@ -22,7 +26,7 @@ resources:
         properties:
             name: { str_replace: { template: deployment-RING, params: { deployment: { get_param: deployment_name }}}}
             key_name: { get_resource: ssh_key }
-            image: Ubuntu 14.04 amd64
+            image: { get_param: image }
             flavor: m1.medium
             user_data_format: RAW
 
@@ -31,7 +35,7 @@ resources:
         properties:
             name: { str_replace: { template: deployment-NFS, params: { deployment: { get_param: deployment_name }}}}
             key_name: { get_resource: ssh_key }
-            image: Ubuntu 14.04 amd64
+            image: { get_param: image }
             flavor: m1.small
             user_data_format: RAW
 
@@ -40,7 +44,7 @@ resources:
         properties:
             name: { str_replace: { template: deployment-CIFS, params: { deployment: { get_param: deployment_name }}}}
             key_name: { get_resource: ssh_key }
-            image: Ubuntu 14.04 amd64
+            image: { get_param: image }
             flavor: m1.small
             user_data_format: RAW
 

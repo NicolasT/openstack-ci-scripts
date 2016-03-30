@@ -1,8 +1,0 @@
-daemon_poll_period: 5
-daemons: {}
-ip_whitelist:
-- %(supervisor_host)s
-- localhost
-port: 7084
-snmp_file: /var/lib/scality-sagentd/oidlist.txt
-snmp_update_period: 5
