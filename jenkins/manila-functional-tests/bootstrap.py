@@ -328,7 +328,7 @@ def create_volume(name, role, devid, connector_ip, connector_port=7002,
         raise Exception('Unable to add connector to volume {0:s}'.format(name))
 
 
-def setup_sfused(name, supervisor_host):
+def setup_sfused(name, supervisor_host, dewpoint=False):
     """
     Install sfused and register it through sagentd to the supervisor.
 
@@ -336,9 +336,20 @@ def setup_sfused(name, supervisor_host):
     :type name: string
     :param supervisor_host: supervisor host for sagentd registration
     :type supervisor_host: string
+    :param dewpoint: whether to install the dewpoint flavor of sfused
+    :type dewpoint: bool
     """
-    install_packages('scality-sfused')
-    start_service('scality-sfused')
+    if dewpoint:
+        sfused = 'scality-dewpoint-fcgi'
+        sysfs = '/run/scality/connectors/dewpoint'
+        connector_name = 'dewpoint-{0:s}'.format(name)
+    else:
+        sfused = 'scality-sfused'
+        sysfs = '/run/scality/connectors/sfused'
+        connector_name = 'sfused-{0:s}'.format(name)
+
+    install_packages(sfused)
+    start_service(sfused)
 
     # Ensure supervisor is whitelisted
     update_yaml(
@@ -351,12 +362,13 @@ def setup_sfused(name, supervisor_host):
     manageconf_path = run('which sagentd-manageconf')  # Required for CentOS
 
     sudo(
-        '{manageconf:s} -c /etc/sagentd.yaml add sfused-{role:s} '
+        '{manageconf:s} -c /etc/sagentd.yaml add {name:s} '
         'type=sfused port=7002 address={host:s} '
-        'path=/run/scality/connectors/sfused'.format(
+        'path={sysfs:s}'.format(
             manageconf=manageconf_path,
-            role=name,
+            name=connector_name,
             host=env.host,
+            sysfs=sysfs,
         )
     )
 
@@ -369,7 +381,7 @@ def setup_connector(role, volume_name, devid, supervisor_host,
     """
     Deploy an sfused connector, and an associated volume.
 
-    :param role: connector role (nfs or cifs)
+    :param role: connector role (nfs, cifs, localfs, or dewpoint)
     :type role: string
     :param volume_name: the name of the SOFS volume to create and expose
     :type volume_name: string
@@ -385,10 +397,22 @@ def setup_connector(role, volume_name, devid, supervisor_host,
     :param name: name of connector, defaults to role, eg nfs
     :type name: string
     """
-    connector_name = name or role
-    setup_sfused(connector_name, supervisor_host)
+    if role == 'dewpoint':
+        dewpoint_mode = True
+        transport = 'localfs'
+        conf = '/etc/dewpoint-sofs.js'
+        service_name = 'scality-dewpoint-fcgi'
+    else:
+        dewpoint_mode = False
+        transport = role
+        conf = '/etc/sfused.conf'
+        service_name = 'scality-sfused'
 
-    execute(create_volume, volume_name, role, devid, env.host,
+    connector_name = name or role
+
+    setup_sfused(connector_name, supervisor_host, dewpoint_mode)
+
+    execute(create_volume, volume_name, transport, devid, env.host,
             data_ring=data_ring, md_ring=md_ring, host=supervisor_host)
 
     sfused = run('which sfused')  # Required for CentOS
@@ -398,7 +422,7 @@ def setup_connector(role, volume_name, devid, supervisor_host,
     for retry in range(retries):
         time.sleep(5)
         cmd = sudo(
-            command='{0:s} -X -c /etc/sfused.conf'.format(sfused),
+            command='{0:s} -X -c {1:s}'.format(sfused, conf),
             warn_only=True,
         )
         if cmd.succeeded:
@@ -406,7 +430,7 @@ def setup_connector(role, volume_name, devid, supervisor_host,
     else:
         raise Exception("Catalog init failed for '{0:s}'".format(volume_name))
 
-    restart_service('scality-sfused')
+    restart_service(service_name)
 
 
 def setup_nfs_connector(volume_name, devid, supervisor_host):
@@ -464,6 +488,44 @@ def setup_cifs_connector(volume_name, devid, supervisor_host):
     # The sernet-samba-smbd init script is flaky: if the parent exits
     # to quickly, the smbd process does not have time to daemonize.
     sudo('/etc/init.d/sernet-samba-smbd start && sleep 5')
+
+
+def setup_dewpoint_connector(name, volume_name, devid, supervisor_host,
+                             data_ring='MyRing', md_ring='MyRing'):
+    """
+    Deploy a dewpoint connector and SOFS accompanying volume.
+
+    :param name: arbitrary name to associate with connector
+    :type name: string
+    :param volume_name: name of volume to create
+    :type volume_name: string
+    :param devid: volume device id
+    :type devid: int
+    :param supervisor_host: hostname or ip of the supervisor for registration
+        of connector and volume
+    :type supervisor_host: string
+    :param data_ring: name of the ring backing the volume data
+    :type data_ring: string
+    :param md_ring: name of the ring backing the volume metadata
+    :type md_ring: string
+    """
+    setup_connector('dewpoint', volume_name, devid, supervisor_host, data_ring,
+                    md_ring, name)
+    install_packages('nginx')
+
+    upload_template(
+        filename=abspath('assets/connector/etc/dewpoint.js'),
+        destination='/etc',
+        use_sudo=True,
+    )
+    upload_template(
+        filename=abspath('assets/connector/etc/nginx/nginx.conf'),
+        destination='/etc/nginx',
+        use_sudo=True,
+    )
+
+    restart_service('scality-dewpoint-fcgi')
+    restart_service('nginx')
 
 
 def put_installation_credentials():
