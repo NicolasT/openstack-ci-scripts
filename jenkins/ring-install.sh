@@ -101,7 +101,7 @@ EOF"
     if [[ $os_RELEASE =~ ^6 ]]; then
         epel_repo='http://mirror.cogentco.com/pub/linux/epel/6/i386/epel-release-6-8.noarch.rpm'
     elif [[ $os_RELEASE =~ ^7 ]]; then
-        epel_repo='http://mirror.cogentco.com/pub/linux/epel/7/x86_64/e/epel-release-7-5.noarch.rpm'
+        epel_repo='http://mirror.cogentco.com/pub/linux/epel/7/x86_64/e/epel-release-7-6.noarch.rpm'
     fi
     sudo rpm -Uvh $epel_repo
 }
