@@ -97,13 +97,11 @@ baseurl=http://${SCAL_PASS}@packages.scality.com/stable_${RING_CODENAME}/centos/
 gpgcheck=0
 EOF"
     set -x
-    local epel_repo
     if [[ $os_RELEASE =~ ^6 ]]; then
-        epel_repo='http://mirror.cogentco.com/pub/linux/epel/6/i386/epel-release-6-8.noarch.rpm'
+        sudo rpm -Uvh http://mirror.cogentco.com/pub/linux/epel/6/i386/epel-release-6-8.noarch.rpm
     elif [[ $os_RELEASE =~ ^7 ]]; then
-        epel_repo='http://mirror.cogentco.com/pub/linux/epel/7/x86_64/e/epel-release-7-6.noarch.rpm'
+        sudo yum install -y epel-release
     fi
-    sudo rpm -Uvh $epel_repo
 }
 
 function add_source_ubuntu {
